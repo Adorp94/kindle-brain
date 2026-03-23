@@ -231,8 +231,8 @@ struct MessageBubble: View {
                             Text(source.bookTitle)
                                 .font(.caption.bold())
                                 .textSelection(.enabled)
-                            if !source.author.isEmpty {
-                                Text(source.author)
+                            if let author = source.author, !author.isEmpty {
+                                Text(author)
                                     .font(.caption2)
                                     .foregroundStyle(.tertiary)
                                     .textSelection(.enabled)
@@ -289,7 +289,7 @@ struct MessageBubble: View {
 
     private func formatSourceForCopy(_ source: ChatSource) -> String {
         var parts = ["\(source.bookTitle)"]
-        if !source.author.isEmpty { parts.append("by \(source.author)") }
+        if let author = source.author, !author.isEmpty { parts.append("by \(author)") }
         if let page = source.page, page > 0 { parts.append("p. \(page)") }
         parts.append("\"\(source.highlight)\"")
         return parts.joined(separator: " — ")
