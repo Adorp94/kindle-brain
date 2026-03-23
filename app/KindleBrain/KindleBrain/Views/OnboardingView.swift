@@ -8,6 +8,7 @@ struct OnboardingView: View {
     @State private var detectedPath = ""
     @State private var validationMessage = ""
     @State private var isValid = false
+    @State private var showAPIKey = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -85,6 +86,7 @@ struct OnboardingView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
 
             // Auto-detected or chosen path
             HStack {
@@ -131,9 +133,26 @@ struct OnboardingView: View {
                 .foregroundStyle(.secondary)
                 .lineSpacing(2)
 
-            SecureField("Paste your API key here", text: $geminiAPIKey)
+            HStack {
+                Group {
+                    if showAPIKey {
+                        TextField("Paste your API key here", text: $geminiAPIKey)
+                    } else {
+                        SecureField("Paste your API key here", text: $geminiAPIKey)
+                    }
+                }
                 .textFieldStyle(.roundedBorder)
                 .font(.body.monospaced())
+
+                Button {
+                    showAPIKey.toggle()
+                } label: {
+                    Image(systemName: showAPIKey ? "eye.slash" : "eye")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(showAPIKey ? "Hide API key" : "Show API key")
+            }
 
             Link(destination: URL(string: "https://aistudio.google.com/")!) {
                 Label("Get a free API key at aistudio.google.com", systemImage: "arrow.up.right")

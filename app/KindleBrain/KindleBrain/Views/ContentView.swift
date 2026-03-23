@@ -34,12 +34,16 @@ struct ContentView: View {
             }
             ToolbarItem(placement: .automatic) {
                 Button {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                    // Try macOS 14+ API first, fall back to older selector
+                    if #available(macOS 14, *) {
+                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                    } else {
+                        NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+                    }
                 } label: {
                     Image(systemName: "gearshape")
                 }
-                .help("Settings")
-                .keyboardShortcut(",", modifiers: .command)
+                .help("Settings (⌘,)")
             }
         }
         .focusedSceneValue(\.selectedTab, $selectedTab)

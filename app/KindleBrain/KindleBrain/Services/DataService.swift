@@ -4,7 +4,13 @@ import SQLite3
 /// Direct SQLite access to kindle.db and markdown files.
 /// Replaces APIService HTTP calls with local database reads.
 actor DataService {
-    static let shared = DataService()
+    private static var _shared = DataService()
+    static var shared: DataService { _shared }
+
+    /// Call after onboarding or settings change to reload with new path
+    static func reload() {
+        _shared = DataService()
+    }
 
     private var kindleDB: OpaquePointer?
     private let dataDir: URL
@@ -12,7 +18,7 @@ actor DataService {
     private let coversDir: URL
 
     /// Resolves the data directory from: UserDefaults > env var > ~/.kindle-brain/
-    static func resolveDataDir() -> URL {
+    nonisolated static func resolveDataDir() -> URL {
         // 1. User-configured path in Settings
         if let saved = UserDefaults.standard.string(forKey: "dataDirectory"), !saved.isEmpty {
             let url = URL(filePath: saved)

@@ -9,8 +9,8 @@ class ChatViewModel: ObservableObject {
     @Published var conversations: [Conversation] = []
     @Published var currentConversationId: String?
 
-    private let data = DataService.shared
-    private let gemini = GeminiService.shared
+    private var data: DataService { DataService.shared }
+    private var gemini: GeminiService { GeminiService.shared }
     private let store = ChatStore.shared
     private var streamTask: Task<Void, Never>?
 

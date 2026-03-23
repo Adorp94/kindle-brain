@@ -35,6 +35,13 @@ struct KindleBrainApp: App {
                 }
             }
             .frame(minWidth: 600, minHeight: 400)
+            .onChange(of: onboardingComplete) { _, completed in
+                if completed {
+                    // Reload DataService with the newly configured path
+                    DataService.reload()
+                    Task { await libraryVM.loadBooks() }
+                }
+            }
         }
         .windowStyle(.automatic)
         .windowToolbarStyle(.unified)

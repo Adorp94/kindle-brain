@@ -11,7 +11,7 @@ class LibraryViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var stats: LibraryStats?
 
-    private let data = DataService.shared
+    private var data: DataService { DataService.shared }
     private var loadTask: Task<Void, Never>?
 
     var filteredBooks: [Book] {

@@ -290,8 +290,8 @@ struct HighlightCard: View {
     @State private var isExplaining = false
     @State private var showExplanation = false
 
-    private let data = DataService.shared
-    private let gemini = GeminiService.shared
+    private var data: DataService { DataService.shared }
+    private var gemini: GeminiService { GeminiService.shared }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
