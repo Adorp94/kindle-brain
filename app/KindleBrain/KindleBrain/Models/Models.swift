@@ -70,13 +70,27 @@ struct ChatResponse: Codable {
 struct ChatSource: Identifiable, Codable {
     var id: String { "\(bookTitle)-\(page ?? 0)-\(highlight.prefix(20))" }
     let bookTitle: String
-    let author: String
+    let author: String?
     let page: Int?
     let highlight: String
-    let score: Double
+    let score: Double?
 
     enum CodingKeys: String, CodingKey {
         case author, page, highlight, score
+        case bookTitle = "book_title"
+    }
+}
+
+struct HighlightExplanation: Codable {
+    let highlightId: Int
+    let highlight: String
+    let bookTitle: String
+    let chapter: String?
+    let explanation: String
+
+    enum CodingKeys: String, CodingKey {
+        case highlight, chapter, explanation
+        case highlightId = "highlight_id"
         case bookTitle = "book_title"
     }
 }

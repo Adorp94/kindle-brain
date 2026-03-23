@@ -284,6 +284,11 @@ struct StatBadge: View {
 
 struct HighlightCard: View {
     let highlight: Highlight
+    @State private var explanation: String?
+    @State private var isExplaining = false
+    @State private var showExplanation = false
+
+    private let api = APIService.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -320,6 +325,27 @@ struct HighlightCard: View {
                 }
                 Spacer()
 
+                // Explain button
+                Button {
+                    if explanation != nil {
+                        showExplanation.toggle()
+                    } else {
+                        fetchExplanation()
+                    }
+                } label: {
+                    if isExplaining {
+                        ProgressView()
+                            .scaleEffect(0.5)
+                            .frame(width: 14, height: 14)
+                    } else {
+                        Image(systemName: showExplanation ? "lightbulb.fill" : "lightbulb")
+                            .font(.caption)
+                            .foregroundStyle(showExplanation ? .orange : .secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("Explain this highlight")
+
                 Button {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(highlight.text, forType: .string)
@@ -330,6 +356,23 @@ struct HighlightCard: View {
                 }
                 .buttonStyle(.plain)
                 .help("Copy highlight")
+            }
+
+            // Explanation block
+            if showExplanation, let explanation {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "lightbulb.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Text(explanation)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .lineSpacing(2)
+                }
+                .padding(10)
+                .background(Color.orange.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
             if let note = highlight.note, !note.isEmpty {
@@ -354,6 +397,27 @@ struct HighlightCard: View {
             RoundedRectangle(cornerRadius: 14)
                 .stroke(Color.secondary.opacity(0.08), lineWidth: 1)
         )
+        .animation(.easeInOut(duration: 0.2), value: showExplanation)
+    }
+
+    private func fetchExplanation() {
+        isExplaining = true
+        Task {
+            do {
+                let result = try await api.explainHighlight(id: highlight.id)
+                await MainActor.run {
+                    explanation = result.explanation
+                    showExplanation = true
+                    isExplaining = false
+                }
+            } catch {
+                await MainActor.run {
+                    explanation = "Could not generate explanation."
+                    showExplanation = true
+                    isExplaining = false
+                }
+            }
+        }
     }
 }
 

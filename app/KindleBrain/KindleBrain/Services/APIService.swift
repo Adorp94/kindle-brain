@@ -127,6 +127,14 @@ actor APIService {
         let _ = try await URLSession.shared.data(for: request)
     }
 
+    // MARK: - Highlight Explain
+
+    func explainHighlight(id: Int) async throws -> HighlightExplanation {
+        let url = URL(string: "\(baseURL)/highlights/\(id)/explain")!
+        let (data, _) = try await URLSession.shared.data(from: url)
+        return try decoder.decode(HighlightExplanation.self, from: data)
+    }
+
     // MARK: - Stats
 
     func fetchStats() async throws -> LibraryStats {
