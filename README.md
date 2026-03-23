@@ -1,6 +1,15 @@
-# Kindle Brain
+<p align="center">
+  <img src="public/kindle-brain.png" alt="Kindle Brain" width="128" height="128">
+</p>
 
-Turn your Kindle highlights into a personal AI knowledge base. Ask Claude questions and get answers synthesized across all your books.
+<h1 align="center">Kindle Brain</h1>
+
+<p align="center">
+  Turn your Kindle highlights into a personal AI knowledge base.<br>
+  Ask Claude questions and get answers synthesized across all your books.
+</p>
+
+---
 
 ```
 You: "What do my books say about persistence and founding companies?"
@@ -12,14 +21,70 @@ highlighted passages → synthesizes across 5+ books with your personal angle
 
 ## How It Works
 
-Your Kindle highlights are enriched with **golden nuggets** — massive ~4,000-word context blocks extracted from the original book text around each highlight. These preserve the author's exact words, metaphors, and arguments.
+You connect your Kindle highlights to Claude through an MCP server. When you ask a question, Claude follows this workflow:
 
-A **two-tier catalog system** lets Claude navigate your entire library:
+1. **Browse the catalog** — reads `CATALOG.md`, a compact index of all your books (~48K chars). Each book has a one-sentence personalized description, semantic tags, and cross-book links. Claude reads all entries in one call and reasons *laterally* — a Nike biography is relevant to "entrepreneurship", a philosophy book to "leadership under pressure".
 
-1. **CATALOG.md** (~48K chars) — compact LLM-generated descriptions + semantic tags for every book, fits inline in one MCP call
-2. **Per-book files** — full fingerprint + highlights + chapter summaries for deep reading
+2. **Identify relevant books** — Claude picks 5-8 books that connect to your question, including unexpected ones that keyword search would miss.
 
-Claude reads the catalog, identifies 5-8 relevant books laterally (a Nike biography is relevant to "entrepreneurship", a philosophy book to "leadership under pressure"), then drills into each book's highlights to synthesize across your reading.
+3. **Read each book** — calls `read_book()` for each selected title. Each file contains a semantic fingerprint (what YOU highlighted most, not a generic summary), chapter summaries, and all your highlighted passages organized by chapter.
+
+4. **Synthesize** — Claude weaves together insights from across your reading, grounded in the actual passages you found important.
+
+## Why This Architecture
+
+### Why markdown files instead of vector search?
+
+Vector search (embeddings + ChromaDB) is included as an option, but the **primary interface is file-based** — and that's intentional.
+
+When Claude reads your book files directly, it can:
+- **Reason across chapters** — understand how an author builds an argument from introduction to conclusion
+- **See your reading pattern** — which chapters you highlighted heavily vs skipped entirely
+- **Cross-reference books** — connect a concept from Antifragile with a story from Shoe Dog, using the *author's own words*
+- **Use chapter summaries as scaffolding** — understand the structure of a book even from chapters you didn't highlight
+
+Vector search returns isolated snippets ranked by similarity. Claude reading markdown files gets **structured context** — the book's architecture, the reader's focus, and the connections between ideas.
+
+### Why a two-tier catalog?
+
+The full library index (`LIBRARY.md`, ~274K chars) is too large for a single MCP tool response. Claude.ai dumps it to a file and falls back to keyword search — defeating the purpose.
+
+The solution is two tiers:
+- **CATALOG.md** (~48K chars) — compact, fits inline. LLM-compressed descriptions with semantic tags like "gladiator entrepreneurs", "radical momentum", "barbell strategy" — real concepts from each book's vocabulary, not generic keywords.
+- **Per-book files** — full fingerprint + all highlights + chapter summaries. Claude reads these after identifying relevant books from the catalog.
+
+This lets Claude read ALL 114+ books in one call, then drill into specific books for depth.
+
+### Why chapter summaries?
+
+Kindle highlights are scattered across a book without structure. Chapter summaries provide the **missing scaffolding** — they tell Claude what the author is arguing in each section, so highlights can be understood in context rather than as isolated quotes.
+
+A highlight like *"Start small and monopolize"* means one thing in isolation. With the chapter summary explaining Thiel's argument about niche markets and scaling, Claude can explain the *strategy* behind the quote.
+
+### Why semantic fingerprints?
+
+Each book has a "fingerprint" — not a generic book description, but a **personalized reading profile**:
+
+- **What this reader highlighted most** — the themes YOU cared about (not what a reviewer would say)
+- **These highlights help answer** — questions your highlights can address
+- **Key highlighted ideas** — the specific concepts you marked
+- **Connects to** — which other books in YOUR library connect to these themes
+
+This is generated by Gemini Flash Lite from your actual highlights. It means Claude knows that when you read *Shoe Dog*, you focused on "radical momentum" and the "entrepreneurial monk" archetype — not just that it's a Nike memoir.
+
+### What are golden nuggets?
+
+Each highlight has a **~4,000-word context block** extracted from the original book text, centered on your highlighted passage and snapped to paragraph boundaries. The highlight is marked with delimiters (`«««highlight»»»`) inside the full surrounding text.
+
+This preserves the author's exact words, metaphors, and arguments — not just the snippet you highlighted.
+
+Golden nuggets are stored in collapsible `<details>` blocks in each book's markdown file. By default, `read_book()` strips them to keep responses lightweight (~50K chars per book). When Claude needs to go deep on a specific passage, it can request them with `include_nuggets=True`.
+
+**Why they matter even with the file-based approach:**
+- Without: Claude sees *"The most scared we are of a work or calling, the more sure we can be that we have to do it."*
+- With: Claude sees Pressfield's full argument — the Henry Fonda anecdote, the distinction between being scared and being afraid, and why fear is a compass pointing toward important work.
+
+Golden nuggets require Calibre (to extract book text). Without Calibre, you still get highlights + summaries — but the deep context is missing.
 
 ## Quick Start
 
@@ -29,21 +94,23 @@ git clone https://github.com/Adorp94/kindle-brain.git
 cd kindle-brain
 pip install -e .
 
-# 2. Interactive setup (detects Kindle, Calibre, API key)
+# 2. Interactive setup (detects Kindle, Calibre, locale, API key)
 kindle-brain setup
-# Or with a clippings file directly:
+# Or point to a clippings file directly:
 kindle-brain setup --clippings-file "/path/to/My Clippings.txt"
 
-# 3. Enrich and generate
-kindle-brain enrich --rich-context    # Extract golden nuggets (no API)
+# 3. Enrich your highlights
+kindle-brain enrich --rich-context    # Extract golden nuggets (local, no API)
 kindle-brain enrich                   # Generate summaries (Gemini API)
+
+# 4. Generate files for Claude
 kindle-brain generate                 # Book markdown files
-kindle-brain generate --library-index # Semantic fingerprints (API)
-kindle-brain generate --catalog       # Compact catalog (API)
+kindle-brain generate --library-index # Semantic fingerprints (Gemini API)
+kindle-brain generate --catalog       # Compact catalog (Gemini API)
 kindle-brain generate --embed-fingerprints
 
-# 4. Connect to Claude
-kindle-brain serve                    # Start MCP server
+# 5. Connect to Claude
+kindle-brain serve
 ```
 
 Add to Claude Desktop (Settings > Developer > Edit Config):
@@ -63,14 +130,22 @@ Add to Claude Desktop (Settings > Developer > Edit Config):
 
 | | Basic | Full |
 |---|---|---|
-| **Requirements** | `My Clippings.txt` + Gemini API key | + Calibre + ebook files on Kindle |
+| **Requirements** | `My Clippings.txt` + Gemini API key | + [Calibre](https://calibre-ebook.com/) + ebook files on Kindle |
 | **Highlights** | Yes | Yes |
-| **Book/chapter summaries** | Yes (LLM-generated) | Yes |
+| **Book/chapter summaries** | Yes (Gemini Flash Lite) | Yes |
+| **Semantic fingerprints** | Yes (Gemini Flash Lite) | Yes |
 | **Golden nuggets** | No | Yes (~4,000-word context per highlight) |
-| **Vector search** | No | Yes (ChromaDB + Gemini Embedding 2) |
-| **Setup time** | ~5 min | ~15 min |
+| **Vector search** | No | Optional (ChromaDB + Gemini Embedding 2) |
 
-The setup wizard auto-detects your tier.
+The setup wizard auto-detects your tier based on whether Calibre is installed.
+
+## MCP Server Tools
+
+| Tool | Description |
+|------|-------------|
+| `browse_library()` | Returns compact catalog of all books. Always call first. |
+| `read_book(title, include_nuggets?)` | Returns a book's fingerprint + highlights + chapter summaries. |
+| `get_library_stats()` | Library statistics. |
 
 ## CLI Commands
 
@@ -78,13 +153,38 @@ The setup wizard auto-detects your tier.
 kindle-brain setup              # Interactive first-time setup
 kindle-brain sync               # Sync from connected Kindle
 kindle-brain sync --clippings-file f  # Sync from exported file
-kindle-brain extract            # Extract book texts (Calibre)
-kindle-brain enrich             # Context + summaries
-kindle-brain generate           # Markdown files
-kindle-brain index              # Vector index (optional)
-kindle-brain search "query"     # Semantic search
+kindle-brain extract            # Extract book texts (requires Calibre)
+kindle-brain enrich             # Context enrichment + LLM summaries
+kindle-brain generate           # Generate markdown files
+kindle-brain index              # Build vector index (optional)
+kindle-brain search "query"     # Semantic search (requires vector index)
 kindle-brain stats              # Library statistics
-kindle-brain serve              # MCP server (stdio)
+kindle-brain serve              # Start MCP server (stdio)
+```
+
+## The Enrichment Pipeline
+
+```
+My Clippings.txt
+  │
+  ▼
+sync ─────────── Parse highlights into SQLite (Spanish + English)
+  │
+  ▼
+extract ─────── Convert ebooks to plain text via Calibre (optional)
+  │               Detect chapters automatically
+  ▼
+enrich ──────── Fuzzy-match each highlight in book text
+  │               Extract ~20K char golden nugget centered on highlight
+  │               Snap to paragraph boundaries
+  │               Generate book + chapter summaries (Gemini Flash Lite)
+  ▼
+generate ────── Create per-book .md files (highlights + summaries)
+  │               Generate LIBRARY.md (semantic fingerprints, Gemini)
+  │               Compress to CATALOG.md (~48K chars, Gemini)
+  │               Embed fingerprints into each book file
+  ▼
+serve ─────────  MCP server: browse_library → read_book → Claude synthesizes
 ```
 
 ## Architecture
@@ -98,24 +198,37 @@ src/kindle_brain/
   sync.py             # Kindle clipping parser (Spanish + English)
   extract.py          # Calibre text extraction
   enrich.py           # Golden nuggets + LLM summaries
-  index.py            # ChromaDB vector indexing
+  index.py            # ChromaDB vector indexing (optional)
   search.py           # Semantic search
   generate_md.py      # Markdown + catalog generation
   memory.py           # User memory system (3 layers)
   server/
-    mcp_server.py     # MCP server (browse_library, read_book, get_library_stats)
+    mcp_server.py     # MCP server (primary interface)
     api_server.py     # FastAPI server (optional, for custom UIs)
 ```
 
 ### AI Stack (100% Gemini)
 
-- **Embeddings**: `gemini-embedding-2-preview` (8K tokens, 3072 dimensions)
-- **Summaries**: `gemini-3.1-flash-lite-preview` (cheap ETL, 1M context)
-- **Chat**: `gemini-3.1-pro-preview` (deep reasoning, 1M context)
+| Model | Use | Cost |
+|-------|-----|------|
+| `gemini-3.1-flash-lite-preview` | Summaries, fingerprints, catalog compression | Very cheap |
+| `gemini-embedding-2-preview` | Vector embeddings (8K tokens, 3072 dims) | Cheap |
+| `gemini-3.1-pro-preview` | Chat reasoning (optional, for API server) | Moderate |
 
-### Data
+### Data Location
 
-Default location: `~/.kindle-brain/` (override with `KINDLE_BRAIN_DATA` env var)
+Default: `~/.kindle-brain/` (override with `KINDLE_BRAIN_DATA` env var)
+
+```
+~/.kindle-brain/
+  kindle.db         # Main database (highlights, books, chapters)
+  memory.db         # User memory (profile, conversation summaries)
+  config.json       # System config (tier, locale, paths)
+  book_texts/       # Extracted plain text from ebooks
+  books_md/         # Markdown files (CATALOG.md, LIBRARY.md, per-book)
+  vectordb/         # ChromaDB index (optional)
+  covers/           # Book cover images (optional)
+```
 
 ## Languages
 
