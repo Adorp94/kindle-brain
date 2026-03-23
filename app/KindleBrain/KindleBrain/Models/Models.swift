@@ -22,7 +22,16 @@ struct Book: Identifiable, Codable, Hashable {
 
     var coverURL: URL? {
         guard hasCover == true else { return nil }
-        return URL(string: "http://127.0.0.1:8765/covers/\(id).jpg")
+        // Local file URL instead of HTTP server
+        let dataDir: URL
+        if let env = ProcessInfo.processInfo.environment["KINDLE_BRAIN_DATA"] {
+            dataDir = URL(filePath: env)
+        } else {
+            dataDir = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".kindle-brain")
+        }
+        let coverPath = dataDir.appendingPathComponent("covers/\(id).jpg")
+        return FileManager.default.fileExists(atPath: coverPath.path) ? coverPath : nil
     }
 }
 

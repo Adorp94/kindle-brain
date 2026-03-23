@@ -20,6 +20,9 @@
 		A100000B /* ChatStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000C; };
 		A100000C /* MemoryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000D; };
 		A100000D /* MemoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000E; };
+		A100000E /* DataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000F; };
+		A100000F /* GeminiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000010; };
+		A1000010 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000011; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -37,6 +40,9 @@
 		A200000C /* ChatStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatStore.swift; sourceTree = "<group>"; };
 		A200000D /* MemoryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryViewModel.swift; sourceTree = "<group>"; };
 		A200000E /* MemoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryView.swift; sourceTree = "<group>"; };
+		A200000F /* DataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataService.swift; sourceTree = "<group>"; };
+		A2000010 /* GeminiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiService.swift; sourceTree = "<group>"; };
+		A2000011 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A3000001 /* KindleBrain.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KindleBrain.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -77,6 +83,8 @@
 				A2000003 /* APIService.swift */,
 				A2000004 /* ServerManager.swift */,
 				A200000C /* ChatStore.swift */,
+				A200000F /* DataService.swift */,
+				A2000010 /* GeminiService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -106,6 +114,7 @@
 				A2000008 /* ChatView.swift */,
 				A2000009 /* LibraryDetailView.swift */,
 				A200000E /* MemoryView.swift */,
+				A2000011 /* SettingsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -174,6 +183,9 @@
 			A100000B /* ChatStore.swift in Sources */,
 		A100000C /* MemoryViewModel.swift in Sources */,
 		A100000D /* MemoryView.swift in Sources */,
+		A100000E /* DataService.swift in Sources */,
+		A100000F /* GeminiService.swift in Sources */,
+		A1000010 /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

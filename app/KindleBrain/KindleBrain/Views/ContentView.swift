@@ -4,7 +4,6 @@ struct ContentView: View {
     @EnvironmentObject var chatVM: ChatViewModel
     @EnvironmentObject var libraryVM: LibraryViewModel
     @EnvironmentObject var memoryVM: MemoryViewModel
-    @EnvironmentObject var serverManager: ServerManager
     @State private var selectedTab: Tab = .chat
 
     enum Tab: String, CaseIterable {
@@ -17,17 +16,13 @@ struct ContentView: View {
         NavigationSplitView {
             sidebar
         } detail: {
-            if !serverManager.isRunning {
-                serverStartingView
-            } else {
-                switch selectedTab {
-                case .chat:
-                    ChatView()
-                case .library:
-                    LibraryDetailView()
-                case .memory:
-                    MemoryView()
-                }
+            switch selectedTab {
+            case .chat:
+                ChatView()
+            case .library:
+                LibraryDetailView()
+            case .memory:
+                MemoryView()
             }
         }
         .toolbar {
@@ -44,24 +39,8 @@ struct ContentView: View {
         }
         .focusedSceneValue(\.selectedTab, $selectedTab)
         .task {
-            while !serverManager.isRunning {
-                try? await Task.sleep(nanoseconds: 500_000_000)
-            }
             await libraryVM.loadBooks()
             await libraryVM.loadStats()
-        }
-    }
-
-    private var serverStartingView: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-                .scaleEffect(1.5)
-            Text(serverManager.statusMessage)
-                .font(.title3)
-                .foregroundStyle(.secondary)
-            Text("The Python API server is starting up...")
-                .font(.callout)
-                .foregroundStyle(.tertiary)
         }
     }
 
@@ -91,22 +70,6 @@ struct ContentView: View {
 
     private var chatSidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Server status
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(serverManager.isRunning ? Color(nsColor: .systemGreen) : Color(nsColor: .systemOrange))
-                    .frame(width: 8, height: 8)
-                Text(serverManager.statusMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Server status: \(serverManager.statusMessage)")
-
             // New Chat button
             Button {
                 chatVM.newConversation()

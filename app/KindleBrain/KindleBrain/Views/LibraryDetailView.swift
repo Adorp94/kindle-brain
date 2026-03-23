@@ -290,7 +290,8 @@ struct HighlightCard: View {
     @State private var isExplaining = false
     @State private var showExplanation = false
 
-    private let api = APIService.shared
+    private let data = DataService.shared
+    private let gemini = GeminiService.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -422,15 +423,50 @@ struct HighlightCard: View {
         isExplaining = true
         Task {
             do {
-                let result = try await api.explainHighlight(id: highlight.id)
+                guard let ctx = await data.getHighlightContext(id: highlight.id) else {
+                    throw NSError(domain: "", code: 0, userInfo: [NSLocalizedDescriptionKey: "Highlight not found"])
+                }
+
+                // Build prompt with context
+                var parts: [String] = ["Book: \(ctx.bookTitle) by \(ctx.author ?? "")"]
+                if let ch = ctx.chapterTitle { parts.append("Chapter: \(ch)") }
+                if let cs = ctx.chapterSummary { parts.append("Chapter summary: \(cs)") }
+
+                if let rc = ctx.richContext {
+                    var clean = rc.replacingOccurrences(of: "«««", with: "[HIGHLIGHTED: ")
+                                  .replacingOccurrences(of: "»»»", with: "]")
+                    if clean.count > 8000 {
+                        let markerPos = clean.range(of: "[HIGHLIGHTED:")?.lowerBound ?? clean.startIndex
+                        let start = clean.index(markerPos, offsetBy: -3000, limitedBy: clean.startIndex) ?? clean.startIndex
+                        let end = clean.index(markerPos, offsetBy: 5000, limitedBy: clean.endIndex) ?? clean.endIndex
+                        clean = String(clean[start..<end])
+                    }
+                    parts.append("Surrounding text:\n\(clean)")
+                } else if let sc = ctx.surroundingContext {
+                    parts.append("Context: \(sc)")
+                }
+
+                let prompt = """
+                    The reader highlighted this passage and wants to understand why it matters.
+
+                    \(parts.joined(separator: "\n\n"))
+
+                    HIGHLIGHTED PASSAGE: "\(ctx.text)"
+
+                    Explain briefly (2-3 sentences) what the author was discussing.
+                    Focus on the argument being built and why this passage matters.
+                    Write in the same language as the highlighted text.
+                    """
+
+                let result = try await gemini.generateContent(prompt: prompt)
                 await MainActor.run {
-                    explanation = result.explanation
+                    explanation = result
                     showExplanation = true
                     isExplaining = false
                 }
             } catch {
                 await MainActor.run {
-                    explanation = "Could not generate explanation."
+                    explanation = "Could not generate explanation: \(error.localizedDescription)"
                     showExplanation = true
                     isExplaining = false
                 }

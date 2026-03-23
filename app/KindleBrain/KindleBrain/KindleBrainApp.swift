@@ -20,7 +20,6 @@ struct KindleBrainApp: App {
     @StateObject private var chatVM = ChatViewModel()
     @StateObject private var libraryVM = LibraryViewModel()
     @StateObject private var memoryVM = MemoryViewModel()
-    @StateObject private var serverManager = ServerManager.shared
 
     @FocusedBinding(\.selectedTab) private var selectedTab
 
@@ -31,10 +30,6 @@ struct KindleBrainApp: App {
                 .environmentObject(chatVM)
                 .environmentObject(libraryVM)
                 .environmentObject(memoryVM)
-                .environmentObject(serverManager)
-                .onAppear {
-                    serverManager.start()
-                }
         }
         .windowStyle(.automatic)
         .windowToolbarStyle(.unified)
@@ -73,9 +68,24 @@ struct KindleBrainApp: App {
 
     private var settingsView: some View {
         Form {
-            Section("API Server") {
-                TextField("Server URL", text: .constant("http://127.0.0.1:8765"))
-                    .textFieldStyle(.roundedBorder)
+            Section("Gemini API") {
+                SecureField("API Key", text: Binding(
+                    get: { UserDefaults.standard.string(forKey: "geminiAPIKey") ?? "" },
+                    set: { UserDefaults.standard.set($0, forKey: "geminiAPIKey") }
+                ))
+                Text("Get a free key at aistudio.google.com")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Section("Data") {
+                let dataDir = DataService.shared
+                LabeledContent("Data Directory") {
+                    Text("~/.kindle-brain/")
+                        .textSelection(.enabled)
+                }
+                Text("Run `kindle-brain setup` to configure your data")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
             Section("About") {
                 LabeledContent("Version", value: "0.1.0")
@@ -83,6 +93,6 @@ struct KindleBrainApp: App {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 450, height: 200)
+        .frame(width: 450, height: 300)
     }
 }

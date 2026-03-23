@@ -8,28 +8,20 @@ class MemoryViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var error: String?
 
-    private let api = APIService.shared
+    private let data = DataService.shared
 
     func load() async {
         isLoading = true
         error = nil
-        do {
-            let response = try await api.fetchMemory()
-            memories = response.memories
-            conversations = response.recentConversations
-            interests = response.topInterests
-        } catch {
-            self.error = "Could not load memory: \(error.localizedDescription)"
-        }
+        let response = await data.fetchMemory()
+        memories = response.memories
+        conversations = response.recentConversations
+        interests = response.topInterests
         isLoading = false
     }
 
     func deleteMemory(_ memory: UserMemory) async {
-        do {
-            try await api.deleteMemory(id: memory.id)
-            memories.removeAll { $0.id == memory.id }
-        } catch {
-            self.error = "Could not delete memory: \(error.localizedDescription)"
-        }
+        await data.deleteMemory(id: memory.id)
+        memories.removeAll { $0.id == memory.id }
     }
 }
