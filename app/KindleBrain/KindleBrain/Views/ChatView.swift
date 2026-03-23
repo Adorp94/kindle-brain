@@ -226,39 +226,33 @@ struct MessageBubble: View {
     @State private var isToolCallsExpanded = false
 
     private var toolCallsSection: some View {
-        DisclosureGroup(isExpanded: $isToolCallsExpanded) {
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(message.toolCalls) { tc in
-                    HStack(spacing: 8) {
-                        Image(systemName: tc.tool == "browse_library" ? "list.bullet.rectangle" : "book.closed.fill")
-                            .font(.caption)
+        let bookCalls = message.toolCalls.filter { $0.tool == "read_book" }
+        return DisclosureGroup(isExpanded: $isToolCallsExpanded) {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(bookCalls) { tc in
+                    HStack(spacing: 6) {
+                        Image(systemName: "book.closed.fill")
+                            .font(.system(size: 9))
                             .foregroundStyle(.orange)
-                            .frame(width: 14)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(tc.tool == "browse_library" ? "Browse library" : "Read book")
-                                .font(.caption.bold())
-                            if let args = tc.args {
-                                Text(args)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
+                        Text(tc.args ?? "")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
+            .padding(.leading, 20)
             .padding(.vertical, 4)
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "brain.head.profile")
                     .font(.caption)
                     .foregroundStyle(.orange)
-                let bookCount = message.toolCalls.filter { $0.tool == "read_book" }.count
-                Text("Read \(bookCount) book\(bookCount == 1 ? "" : "s") from your library")
+                Text("Read \(bookCalls.count) book\(bookCalls.count == 1 ? "" : "s") from your library")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.horizontal, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var sourcesSection: some View {
@@ -354,92 +348,161 @@ struct MessageBubble: View {
 
 // MARK: - Markdown Text View
 
-/// Renders the entire response as a single AttributedString so text selection
-/// works across the full message — not limited to individual paragraphs.
+/// Renders chat responses with proper markdown formatting.
+/// Uses VStack of blocks for proper blockquote styling with orange bar.
 struct MarkdownTextView: View {
     let text: String
 
     var body: some View {
-        Text(buildAttributedString())
-            .lineSpacing(5)
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(Array(parseBlocks().enumerated()), id: \.offset) { _, block in
+                renderBlock(block)
+            }
+        }
     }
 
-    private func buildAttributedString() -> AttributedString {
+    private enum Block {
+        case heading(String, Int)       // text, level (1-3)
+        case blockquote(String)         // quote content
+        case bulletList([String])       // list items
+        case numberedList([(Int, String)])  // (number, content)
+        case divider
+        case paragraph(String)          // regular text
+    }
+
+    private func parseBlocks() -> [Block] {
         let paragraphs = text.components(separatedBy: "\n\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
-        var result = AttributedString()
+        var blocks: [Block] = []
 
-        for (index, block) in paragraphs.enumerated() {
-            if index > 0 {
-                result += AttributedString("\n\n")
-            }
-
+        for block in paragraphs {
             if block.hasPrefix("### ") {
-                var attr = AttributedString(String(block.dropFirst(4)))
-                attr.font = .headline
-                result += attr
+                blocks.append(.heading(String(block.dropFirst(4)), 3))
             } else if block.hasPrefix("## ") {
-                var attr = AttributedString(String(block.dropFirst(3)))
-                attr.font = .title3.bold()
-                result += attr
+                blocks.append(.heading(String(block.dropFirst(3)), 2))
             } else if block.hasPrefix("# ") {
-                var attr = AttributedString(String(block.dropFirst(2)))
-                attr.font = .title2.bold()
-                result += attr
-            } else if block.hasPrefix("> ") {
-                // Blockquote: vertical bar character + italic text
-                let quoteContent = block.dropFirst(2)
-                    .replacingOccurrences(of: "\n> ", with: "\n")
-                    .replacingOccurrences(of: "\n>", with: "\n")
-                var bar = AttributedString("▎ ")
-                bar.foregroundColor = .orange
-                result += bar
-                if let md = try? AttributedString(markdown: quoteContent, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
-                    var styled = md
-                    styled.foregroundColor = .secondary
-                    result += styled
-                } else {
-                    var styled = AttributedString(String(quoteContent))
-                    styled.foregroundColor = .secondary
-                    result += styled
-                }
+                blocks.append(.heading(String(block.dropFirst(2)), 1))
+            } else if block.hasPrefix("> ") || block.hasPrefix(">") {
+                let content = block
+                    .components(separatedBy: "\n")
+                    .map { line in
+                        var l = line
+                        if l.hasPrefix("> ") { l = String(l.dropFirst(2)) }
+                        else if l.hasPrefix(">") { l = String(l.dropFirst(1)) }
+                        return l
+                    }
+                    .joined(separator: "\n")
+                blocks.append(.blockquote(content))
             } else if block.hasPrefix("- ") || block.hasPrefix("* ") {
-                // Bullet list
+                let items = block.components(separatedBy: "\n")
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { $0.hasPrefix("- ") || $0.hasPrefix("* ") }
+                    .map { String($0.dropFirst(2)) }
+                blocks.append(.bulletList(items))
+            } else if block.first?.isNumber == true && block.contains(". ") {
+                // Numbered list: "1. ...\n2. ...\n3. ..."
                 let lines = block.components(separatedBy: "\n")
-                for (i, line) in lines.enumerated() {
+                var items: [(Int, String)] = []
+                for line in lines {
                     let trimmed = line.trimmingCharacters(in: .whitespaces)
-                    if i > 0 { result += AttributedString("\n") }
-                    if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
-                        let content = String(trimmed.dropFirst(2))
-                        var bullet = AttributedString("  \u{2022} ")
-                        bullet.foregroundColor = .secondary
-                        result += bullet
-                        if let md = try? AttributedString(markdown: content, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
-                            result += md
-                        } else {
-                            result += AttributedString(content)
-                        }
-                    } else if !trimmed.isEmpty {
-                        result += parseInlineMarkdown(trimmed)
+                    // Match "1. ", "2. ", etc.
+                    if let dotIndex = trimmed.firstIndex(of: "."),
+                       let num = Int(trimmed[trimmed.startIndex..<dotIndex]),
+                       trimmed.index(after: dotIndex) < trimmed.endIndex {
+                        let content = String(trimmed[trimmed.index(dotIndex, offsetBy: 2)...])
+                        items.append((num, content))
+                    } else if !trimmed.isEmpty && !items.isEmpty {
+                        // Continuation line — append to last item
+                        items[items.count - 1].1 += " " + trimmed
                     }
                 }
+                if !items.isEmpty {
+                    blocks.append(.numberedList(items))
+                } else {
+                    blocks.append(.paragraph(block))
+                }
             } else if block.hasPrefix("***") || block.hasPrefix("---") {
-                var divider = AttributedString("─────────────────")
-                divider.foregroundColor = Color.gray.opacity(0.4)
-                result += divider
+                blocks.append(.divider)
             } else {
-                // Regular paragraph — parse inline markdown (bold, italic, links)
-                result += parseInlineMarkdown(block)
+                blocks.append(.paragraph(block))
             }
         }
-
-        return result
+        return blocks
     }
 
-    /// Parse inline markdown (bold, italic, code, links) into an AttributedString
-    private func parseInlineMarkdown(_ text: String) -> AttributedString {
+    @ViewBuilder
+    private func renderBlock(_ block: Block) -> some View {
+        switch block {
+        case .heading(let text, let level):
+            switch level {
+            case 1:
+                Text(parseInline(text))
+                    .font(.title2.bold())
+            case 2:
+                Text(parseInline(text))
+                    .font(.title3.bold())
+            default:
+                Text(parseInline(text))
+                    .font(.headline)
+            }
+
+        case .blockquote(let content):
+            HStack(alignment: .top, spacing: 10) {
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(Color.orange)
+                    .frame(width: 3)
+
+                Text(parseInline(content))
+                    .font(.body)
+                    .italic()
+                    .foregroundStyle(.secondary)
+                    .lineSpacing(4)
+            }
+            .padding(.vertical, 4)
+
+        case .bulletList(let items):
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("\u{2022}")
+                            .foregroundStyle(.orange)
+                            .font(.body)
+                        Text(parseInline(item))
+                            .font(.body)
+                            .lineSpacing(3)
+                    }
+                }
+            }
+
+        case .numberedList(let items):
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("\(item.0).")
+                            .font(.body.bold())
+                            .foregroundStyle(.orange)
+                            .frame(width: 20, alignment: .trailing)
+                        Text(parseInline(item.1))
+                            .font(.body)
+                            .lineSpacing(3)
+                    }
+                }
+            }
+
+        case .divider:
+            Divider()
+                .padding(.vertical, 4)
+
+        case .paragraph(let text):
+            Text(parseInline(text))
+                .font(.body)
+                .lineSpacing(5)
+        }
+    }
+
+    private func parseInline(_ text: String) -> AttributedString {
         if let md = try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
             return md
         }
