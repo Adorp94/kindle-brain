@@ -1,45 +1,54 @@
 import Foundation
 import SQLite3
 
-/// Direct SQLite access to kindle.db and memory.db.
+/// Direct SQLite access to kindle.db and markdown files.
 /// Replaces APIService HTTP calls with local database reads.
 actor DataService {
     static let shared = DataService()
 
     private var kindleDB: OpaquePointer?
-    private var memoryDB: OpaquePointer?
     private let dataDir: URL
     private let booksMDDir: URL
     private let coversDir: URL
 
-    init() {
-        // Resolve data directory
-        if let env = ProcessInfo.processInfo.environment["KINDLE_BRAIN_DATA"] {
-            dataDir = URL(filePath: env)
-        } else {
-            dataDir = FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".kindle-brain")
+    /// Resolves the data directory from: UserDefaults > env var > ~/.kindle-brain/
+    static func resolveDataDir() -> URL {
+        // 1. User-configured path in Settings
+        if let saved = UserDefaults.standard.string(forKey: "dataDirectory"), !saved.isEmpty {
+            let url = URL(filePath: saved)
+            if FileManager.default.fileExists(atPath: url.appendingPathComponent("kindle.db").path) {
+                return url
+            }
         }
+        // 2. Environment variable
+        if let env = ProcessInfo.processInfo.environment["KINDLE_BRAIN_DATA"] {
+            let url = URL(filePath: env)
+            if FileManager.default.fileExists(atPath: url.appendingPathComponent("kindle.db").path) {
+                return url
+            }
+        }
+        // 3. Default ~/.kindle-brain/
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".kindle-brain")
+    }
+
+    init() {
+        dataDir = Self.resolveDataDir()
         booksMDDir = dataDir.appendingPathComponent("books_md")
         coversDir = dataDir.appendingPathComponent("covers")
 
-        // Open databases
+        // Open database
         let kindlePath = dataDir.appendingPathComponent("kindle.db").path
         if sqlite3_open_v2(kindlePath, &kindleDB, SQLITE_OPEN_READONLY, nil) != SQLITE_OK {
             print("[DataService] Failed to open kindle.db at \(kindlePath)")
             kindleDB = nil
-        }
-
-        let memoryPath = dataDir.appendingPathComponent("memory.db").path
-        if sqlite3_open(memoryPath, &memoryDB) != SQLITE_OK {
-            print("[DataService] Failed to open memory.db at \(memoryPath)")
-            memoryDB = nil
+        } else {
+            print("[DataService] Opened kindle.db at \(kindlePath)")
         }
     }
 
     deinit {
         sqlite3_close(kindleDB)
-        sqlite3_close(memoryDB)
     }
 
     var isDataAvailable: Bool {
@@ -250,73 +259,6 @@ actor DataService {
             dateRange: DateRange(first: firstDate, last: lastDate),
             topBooks: topBooks
         )
-    }
-
-    // MARK: - Memory
-
-    func fetchMemory() -> MemoryResponse {
-        guard let db = memoryDB else {
-            return MemoryResponse(memories: [], recentConversations: [], topInterests: [])
-        }
-
-        // Memories
-        var memories: [UserMemory] = []
-        var stmt: OpaquePointer?
-        sqlite3_prepare_v2(db,
-            "SELECT id, fact, category, confidence, created_at, updated_at FROM user_memories ORDER BY category, created_at",
-            -1, &stmt, nil)
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            memories.append(UserMemory(
-                id: Int(sqlite3_column_int(stmt, 0)),
-                fact: String(cString: sqlite3_column_text(stmt, 1)),
-                category: String(cString: sqlite3_column_text(stmt, 2)),
-                confidence: sqlite3_column_double(stmt, 3),
-                createdAt: String(cString: sqlite3_column_text(stmt, 4)),
-                updatedAt: String(cString: sqlite3_column_text(stmt, 5))
-            ))
-        }
-        sqlite3_finalize(stmt)
-
-        // Conversations
-        var conversations: [ConversationSummary] = []
-        sqlite3_prepare_v2(db,
-            "SELECT conversation_id, user_query, summary, topics, books_mentioned, language, created_at FROM conversation_summaries ORDER BY created_at DESC LIMIT 20",
-            -1, &stmt, nil)
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            conversations.append(ConversationSummary(
-                conversationId: String(cString: sqlite3_column_text(stmt, 0)),
-                userQuery: String(cString: sqlite3_column_text(stmt, 1)),
-                summary: String(cString: sqlite3_column_text(stmt, 2)),
-                topics: columnText(stmt, 3),
-                booksMentioned: columnText(stmt, 4),
-                language: columnText(stmt, 5),
-                createdAt: String(cString: sqlite3_column_text(stmt, 6))
-            ))
-        }
-        sqlite3_finalize(stmt)
-
-        // Interests
-        var interests: [ReadingInterest] = []
-        sqlite3_prepare_v2(db,
-            "SELECT topic, query_count, last_query, books_related, last_asked FROM reading_interests ORDER BY query_count DESC LIMIT 15",
-            -1, &stmt, nil)
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            interests.append(ReadingInterest(
-                topic: String(cString: sqlite3_column_text(stmt, 0)),
-                queryCount: Int(sqlite3_column_int(stmt, 1)),
-                lastQuery: columnText(stmt, 2),
-                booksRelated: columnText(stmt, 3),
-                lastAsked: String(cString: sqlite3_column_text(stmt, 4))
-            ))
-        }
-        sqlite3_finalize(stmt)
-
-        return MemoryResponse(memories: memories, recentConversations: conversations, topInterests: interests)
-    }
-
-    func deleteMemory(id: Int) {
-        guard let db = memoryDB else { return }
-        sqlite3_exec(db, "DELETE FROM user_memories WHERE id = \(id)", nil, nil, nil)
     }
 
     // MARK: - File-based Library Tools

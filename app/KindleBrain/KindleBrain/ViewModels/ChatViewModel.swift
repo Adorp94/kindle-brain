@@ -143,25 +143,13 @@ class ChatViewModel: ObservableObject {
                 let toolExecutor: GeminiService.ToolExecutor = { [data] name, args in
                     switch name {
                     case "browse_library":
-                        let dataDir: URL
-                        if let env = ProcessInfo.processInfo.environment["KINDLE_BRAIN_DATA"] {
-                            dataDir = URL(filePath: env)
-                        } else {
-                            dataDir = FileManager.default.homeDirectoryForCurrentUser
-                                .appendingPathComponent(".kindle-brain")
-                        }
+                        let dataDir = DataService.resolveDataDir()
                         let catalogPath = dataDir.appendingPathComponent("books_md/CATALOG.md")
                         return (try? String(contentsOf: catalogPath, encoding: .utf8)) ?? "CATALOG.md not found"
 
                     case "read_book":
                         let title = args["book_title"] as? String ?? ""
-                        let dataDir: URL
-                        if let env = ProcessInfo.processInfo.environment["KINDLE_BRAIN_DATA"] {
-                            dataDir = URL(filePath: env)
-                        } else {
-                            dataDir = FileManager.default.homeDirectoryForCurrentUser
-                                .appendingPathComponent(".kindle-brain")
-                        }
+                        let dataDir = DataService.resolveDataDir()
                         let booksDir = dataDir.appendingPathComponent("books_md")
                         guard let files = try? FileManager.default.contentsOfDirectory(at: booksDir, includingPropertiesForKeys: nil) else {
                             return "Books directory not found"

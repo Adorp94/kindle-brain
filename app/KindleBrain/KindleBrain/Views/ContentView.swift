@@ -3,13 +3,11 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var chatVM: ChatViewModel
     @EnvironmentObject var libraryVM: LibraryViewModel
-    @EnvironmentObject var memoryVM: MemoryViewModel
     @State private var selectedTab: Tab = .chat
 
     enum Tab: String, CaseIterable {
         case chat = "Chat"
         case library = "Library"
-        case memory = "Memory"
     }
 
     var body: some View {
@@ -21,8 +19,6 @@ struct ContentView: View {
                 ChatView()
             case .library:
                 LibraryDetailView()
-            case .memory:
-                MemoryView()
             }
         }
         .toolbar {
@@ -51,8 +47,6 @@ struct ContentView: View {
                 chatSidebar
             case .library:
                 librarySidebar
-            case .memory:
-                memorySidebar
             }
         }
         .navigationSplitViewColumnWidth(min: 260, ideal: 310, max: 420)
@@ -62,7 +56,6 @@ struct ContentView: View {
         switch tab {
         case .chat: return "bubble.left.and.bubble.right"
         case .library: return "books.vertical"
-        case .memory: return "brain"
         }
     }
 
@@ -166,71 +159,6 @@ struct ContentView: View {
         }
         .task {
             await chatVM.loadConversations()
-        }
-    }
-
-    // MARK: - Memory Sidebar
-
-    private var memorySidebar: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            GroupBox {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("\(memoryVM.memories.count) facts learned", systemImage: "lightbulb.fill")
-                        .font(.callout)
-                    Label("\(memoryVM.conversations.count) conversations", systemImage: "text.bubble")
-                        .font(.callout)
-                    Label("\(memoryVM.interests.count) topics tracked", systemImage: "sparkles")
-                        .font(.callout)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            } label: {
-                Label("Memory Overview", systemImage: "brain")
-                    .font(.headline)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-
-            Divider()
-
-            if !memoryVM.memories.isEmpty {
-                List {
-                    let categories = Set(memoryVM.memories.map(\.category)).sorted()
-                    ForEach(categories, id: \.self) { category in
-                        let count = memoryVM.memories.filter { $0.category == category }.count
-                        Label("\(category.capitalized) (\(count))", systemImage: categoryIcon(category))
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .listStyle(.sidebar)
-            } else {
-                VStack(spacing: 12) {
-                    Spacer()
-                    Text("Memory is empty")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    Text("Start chatting and Kindle Brain will learn about you.")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .multilineTextAlignment(.center)
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-            }
-        }
-        .task {
-            await memoryVM.load()
-        }
-    }
-
-    private func categoryIcon(_ category: String) -> String {
-        switch category.lowercased() {
-        case "profesion": return "briefcase.fill"
-        case "intereses": return "star.fill"
-        case "preferencias": return "slider.horizontal.3"
-        case "contexto_personal": return "person.fill"
-        case "metas": return "target"
-        default: return "lightbulb.fill"
         }
     }
 
