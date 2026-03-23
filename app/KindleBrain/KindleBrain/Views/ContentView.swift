@@ -130,7 +130,7 @@ struct ContentView: View {
                                     .font(.callout)
                                     .lineLimit(2)
                                     .foregroundStyle(chatVM.currentConversationId == conv.id ? Color.accentColor : .primary)
-                                Text(conv.updatedAt, style: .relative)
+                                Text(relativeTime(conv.updatedAt))
                                     .font(.caption2)
                                     .foregroundStyle(.tertiary)
                             }
@@ -166,6 +166,20 @@ struct ContentView: View {
         .task {
             await chatVM.loadConversations()
         }
+    }
+
+    private func relativeTime(_ date: Date) -> String {
+        let seconds = Int(-date.timeIntervalSinceNow)
+        if seconds < 60 { return "Just now" }
+        let minutes = seconds / 60
+        if minutes < 60 { return "\(minutes)m ago" }
+        let hours = minutes / 60
+        if hours < 24 { return "\(hours)h ago" }
+        let days = hours / 24
+        if days < 7 { return "\(days)d ago" }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        return formatter.string(from: date)
     }
 
     // MARK: - Library Sidebar

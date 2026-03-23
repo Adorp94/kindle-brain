@@ -67,7 +67,7 @@ actor GeminiService {
             let data = try await callAPI(model: chatModel, action: "generateContent", body: body)
 
             // Check if response has function calls
-            let functionCalls = extractFunctionCalls(from: data)
+            let (functionCalls, rawModelParts) = extractFunctionCallsAndModelParts(from: data)
 
             if functionCalls.isEmpty {
                 // No more tool calls — we have the final response
@@ -75,13 +75,10 @@ actor GeminiService {
                 return ChatResult(text: text, toolCalls: allToolCalls)
             }
 
-            // Execute each function call
-            var modelParts: [[String: Any]] = []
+            // Execute each function call and build responses
             var functionResponseParts: [[String: Any]] = []
 
             for fc in functionCalls {
-                modelParts.append(["functionCall": ["name": fc.name, "args": fc.args]])
-
                 let result = executeToolCall(fc.name, fc.args)
                 allToolCalls.append(ToolCallInfo(
                     tool: fc.name,
@@ -97,8 +94,8 @@ actor GeminiService {
                 ])
             }
 
-            // Add model's function calls and our responses to conversation
-            contents.append(["role": "model", "parts": modelParts])
+            // Replay raw model parts (preserves thoughtSignature) + our responses
+            contents.append(["role": "model", "parts": rawModelParts])
             contents.append(["role": "function", "parts": functionResponseParts])
         }
 
@@ -138,18 +135,17 @@ actor GeminiService {
                         )
 
                         let data = try await callAPI(model: chatModel, action: "generateContent", body: body)
-                        let functionCalls = extractFunctionCalls(from: data)
+                        let (functionCalls, rawModelParts) = extractFunctionCallsAndModelParts(from: data)
 
                         if functionCalls.isEmpty {
                             // Final response — stream it token-like
                             let text = extractText(from: data) ?? ""
-                            // Chunk into ~30 char pieces for smooth streaming
                             let chunkSize = 30
                             for i in stride(from: 0, to: text.count, by: chunkSize) {
                                 let start = text.index(text.startIndex, offsetBy: i)
                                 let end = text.index(start, offsetBy: min(chunkSize, text.distance(from: start, to: text.endIndex)))
                                 continuation.yield(.token(String(text[start..<end])))
-                                try await Task.sleep(nanoseconds: 10_000_000) // 10ms
+                                try await Task.sleep(nanoseconds: 10_000_000)
                             }
                             continuation.yield(.done)
                             continuation.finish()
@@ -157,12 +153,9 @@ actor GeminiService {
                         }
 
                         // Execute tools
-                        var modelParts: [[String: Any]] = []
                         var functionResponseParts: [[String: Any]] = []
 
                         for fc in functionCalls {
-                            modelParts.append(["functionCall": ["name": fc.name, "args": fc.args]])
-
                             let result = executeToolCall(fc.name, fc.args)
                             let info = ToolCallInfo(
                                 tool: fc.name,
@@ -179,7 +172,7 @@ actor GeminiService {
                             ])
                         }
 
-                        contents.append(["role": "model", "parts": modelParts])
+                        contents.append(["role": "model", "parts": rawModelParts])
                         contents.append(["role": "function", "parts": functionResponseParts])
                     }
 
@@ -197,6 +190,7 @@ actor GeminiService {
     private struct FunctionCall {
         let name: String
         let args: [String: Any]
+        let rawPart: [String: Any]  // Original part dict including thoughtSignature
     }
 
     private func buildRequestBody(
@@ -273,23 +267,27 @@ actor GeminiService {
         return parts.compactMap { $0["text"] as? String }.joined()
     }
 
-    private func extractFunctionCalls(from data: Data) -> [FunctionCall] {
+    /// Extracts function calls AND captures all raw model parts (including thought signatures)
+    private func extractFunctionCallsAndModelParts(from data: Data) -> (calls: [FunctionCall], rawModelParts: [[String: Any]]) {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let candidates = json["candidates"] as? [[String: Any]],
               let first = candidates.first,
               let content = first["content"] as? [String: Any],
               let parts = content["parts"] as? [[String: Any]] else {
-            return []
+            return ([], [])
         }
 
-        return parts.compactMap { part -> FunctionCall? in
-            guard let fc = part["functionCall"] as? [String: Any],
-                  let name = fc["name"] as? String else {
-                return nil
+        var calls: [FunctionCall] = []
+        for part in parts {
+            if let fc = part["functionCall"] as? [String: Any],
+               let name = fc["name"] as? String {
+                let args = fc["args"] as? [String: Any] ?? [:]
+                calls.append(FunctionCall(name: name, args: args, rawPart: part))
             }
-            let args = fc["args"] as? [String: Any] ?? [:]
-            return FunctionCall(name: name, args: args)
         }
+
+        // Return ALL parts as-is (preserves thoughtSignature, thought parts, etc.)
+        return (calls, parts)
     }
 
     enum GeminiError: LocalizedError {
