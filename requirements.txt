@@ -1,0 +1,8 @@
+google-genai         # Gemini API (embeddings, summaries, chat)
+chromadb             # Vector database
+rapidfuzz            # Fuzzy text matching for finding clippings in book text
+python-dotenv        # Environment variable loading
+mcp[cli]             # Model Context Protocol SDK for LLM tool integration
+fastapi              # API server for SwiftUI app
+uvicorn              # ASGI server for FastAPI
+sse-starlette        # Server-Sent Events for streaming chat

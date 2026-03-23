@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kindle-brain"
+version = "0.1.0"
+description = "Turn your Kindle highlights into a personal AI knowledge base"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = [
+    "google-genai",
+    "python-dotenv",
+    "mcp[cli]",
+    "rapidfuzz",
+]
+
+[project.optional-dependencies]
+search = ["chromadb"]
+api = ["fastapi", "uvicorn", "sse-starlette"]
+all = ["kindle-brain[search,api]"]
+
+[project.scripts]
+kindle-brain = "kindle_brain.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

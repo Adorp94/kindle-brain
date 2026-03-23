@@ -1,0 +1,46 @@
+# Environment
+.env
+
+# Personal data (generated per-user)
+data/kindle.db
+data/memory.db
+data/book_texts/
+data/book_files/
+data/books_md/
+data/covers/
+vectordb/
+highlights.md
+
+# Claude Code local settings (user-specific)
+.claude/settings.local.json
+.claude/plans/
+
+# Keep data dir structure
+!data/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.Python
+venv/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Xcode build + compiled app
+app/KindleBrain/build/
+app/KindleBrain/DerivedData/
+app/KindleBrain.app/
+*.xcuserdata/
