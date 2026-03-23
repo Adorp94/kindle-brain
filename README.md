@@ -113,7 +113,11 @@ kindle-brain generate --embed-fingerprints
 kindle-brain serve
 ```
 
-Add to Claude Desktop (Settings > Developer > Edit Config):
+## Connect to Claude
+
+### Claude Desktop (MCP Connector)
+
+Add to your config (Settings > Developer > Edit Config):
 
 ```json
 {
@@ -124,6 +128,20 @@ Add to Claude Desktop (Settings > Developer > Edit Config):
     }
   }
 }
+```
+
+Restart Claude Desktop. You'll see the three tools appear: `browse_library`, `read_book`, `get_library_stats`. Ask any question about your books and Claude will automatically use the connector.
+
+### Claude Code (Skill)
+
+If you're working inside the cloned repo, the skill at `.claude/skills/kindle-brain/SKILL.md` auto-triggers when you ask about your books.
+
+### Any AI Agent (skills.sh)
+
+Install across Claude Code, Cursor, Copilot, and 20+ other agents:
+
+```bash
+npx skills add Adorp94/kindle-brain
 ```
 
 ## Two Tiers
