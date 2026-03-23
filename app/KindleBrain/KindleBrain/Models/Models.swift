@@ -145,25 +145,28 @@ struct ChatMessage: Identifiable {
     let role: Role
     var text: String
     var sources: [ChatSource]
+    var toolCalls: [ToolCallInfo]
     let timestamp: Date
 
     enum Role {
         case user, assistant
     }
 
-    init(role: Role, text: String, sources: [ChatSource] = [], timestamp: Date = .now) {
+    init(role: Role, text: String, sources: [ChatSource] = [], toolCalls: [ToolCallInfo] = [], timestamp: Date = .now) {
         self.id = UUID()
         self.role = role
         self.text = text
         self.sources = sources
+        self.toolCalls = toolCalls
         self.timestamp = timestamp
     }
 
-    init(id: UUID, role: Role, text: String, sources: [ChatSource] = [], timestamp: Date = .now) {
+    init(id: UUID, role: Role, text: String, sources: [ChatSource] = [], toolCalls: [ToolCallInfo] = [], timestamp: Date = .now) {
         self.id = id
         self.role = role
         self.text = text
         self.sources = sources
+        self.toolCalls = toolCalls
         self.timestamp = timestamp
     }
 }

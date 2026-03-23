@@ -85,6 +85,11 @@ actor APIService {
                                    let sources = try? JSONDecoder().decode([ChatSource].self, from: jsonData) {
                                     continuation.yield(.sources(sources))
                                 }
+                            case "tool_call":
+                                if let jsonData = data.data(using: .utf8),
+                                   let info = try? JSONDecoder().decode(ToolCallInfo.self, from: jsonData) {
+                                    continuation.yield(.toolCall(info))
+                                }
                             case "thinking":
                                 // Decode escaped newlines
                                 let decoded = data.replacingOccurrences(of: "\\n", with: "\n")
@@ -146,7 +151,15 @@ actor APIService {
 
 enum SSEEvent {
     case sources([ChatSource])
+    case toolCall(ToolCallInfo)
     case thinking(String)
     case token(String)
     case done
+}
+
+struct ToolCallInfo: Identifiable, Codable {
+    var id: String { "\(tool)-\(args ?? "")" }
+    let tool: String
+    let args: String?
+    let summary: String
 }

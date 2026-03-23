@@ -73,10 +73,12 @@ def get_db():
 def _create_library_tools():
     """Create browse_library and read_book tools for Gemini function calling.
 
-    Returns (browse_fn, read_fn, books_read_list).
-    books_read_list accumulates titles of books that were read during the session.
+    Returns (browse_fn, read_fn, books_read_list, tool_calls_log).
+    books_read_list accumulates titles of books that were read.
+    tool_calls_log records each tool invocation for UI display.
     """
     books_read = []
+    tool_calls = []  # [{tool, args, summary}]
 
     def browse_library() -> str:
         """Browse the compact catalog of all books in the personal Kindle library.
@@ -97,7 +99,9 @@ def _create_library_tools():
         catalog_path = BOOKS_MD_DIR / "CATALOG.md"
         if not catalog_path.exists():
             return "CATALOG.md not found. Run: kindle-brain generate --catalog"
-        return catalog_path.read_text(encoding='utf-8')
+        content = catalog_path.read_text(encoding='utf-8')
+        tool_calls.append({"tool": "browse_library", "args": None, "summary": f"Read catalog ({len(content)} chars)"})
+        return content
 
     def read_book(book_title: str) -> str:
         """Read a book's full file with fingerprint, highlights, and chapter summaries.
@@ -141,9 +145,10 @@ def _create_library_tools():
         )
 
         books_read.append(matches[0].stem)
+        tool_calls.append({"tool": "read_book", "args": book_title, "summary": f"Read {matches[0].stem} ({len(content)} chars)"})
         return content
 
-    return browse_library, read_book, books_read
+    return browse_library, read_book, books_read, tool_calls
 
 
 # =============================================================================
@@ -207,7 +212,7 @@ async def chat(body: dict):
     system_prompt = get_system_prompt_with_memory()
     gemini = get_gemini()
 
-    browse_library, read_book, books_read = _create_library_tools()
+    browse_library, read_book, books_read, tool_calls = _create_library_tools()
 
     def _generate():
         return gemini.models.generate_content(
@@ -256,7 +261,7 @@ async def chat_stream(body: dict):
         gemini = get_gemini()
 
         # Phase 1: Flash Lite reads catalog + relevant books via tools
-        browse_library, read_book, books_read = _create_library_tools()
+        browse_library, read_book, books_read, tool_calls = _create_library_tools()
 
         retrieval_prompt = (
             "You are a research librarian. The user asked a question about their reading library.\n\n"
@@ -279,6 +284,10 @@ async def chat_stream(body: dict):
             )
 
         retrieval_response = await asyncio.to_thread(_retrieve)
+
+        # Emit tool call events so the UI can show what happened
+        for tc in tool_calls:
+            yield {"event": "tool_call", "data": json.dumps(tc, ensure_ascii=False)}
 
         # Collect the book contents that were read
         # The tools already executed and books_read has the list

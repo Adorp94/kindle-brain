@@ -91,6 +91,8 @@ class ChatViewModel: ObservableObject {
                     switch event {
                     case .sources(let sources):
                         messages[assistantIndex].sources = sources
+                    case .toolCall(let info):
+                        messages[assistantIndex].toolCalls.append(info)
                     case .thinking(let thought):
                         thinkingText = thought
                     case .token(let token):

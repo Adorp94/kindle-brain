@@ -175,6 +175,11 @@ struct MessageBubble: View {
                 if message.role == .assistant { Spacer(minLength: 60) }
             }
 
+            // Tool calls (like Claude's "Used kindle-clippings integration")
+            if !message.toolCalls.isEmpty {
+                toolCallsSection
+            }
+
             // Sources
             if !message.sources.isEmpty {
                 sourcesSection
@@ -216,6 +221,44 @@ struct MessageBubble: View {
         .frame(maxWidth: 400, alignment: .leading)
         .background(Color.secondary.opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    @State private var isToolCallsExpanded = false
+
+    private var toolCallsSection: some View {
+        DisclosureGroup(isExpanded: $isToolCallsExpanded) {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(message.toolCalls) { tc in
+                    HStack(spacing: 8) {
+                        Image(systemName: tc.tool == "browse_library" ? "list.bullet.rectangle" : "book.closed.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .frame(width: 14)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(tc.tool == "browse_library" ? "Browse library" : "Read book")
+                                .font(.caption.bold())
+                            if let args = tc.args {
+                                Text(args)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "brain.head.profile")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                let bookCount = message.toolCalls.filter { $0.tool == "read_book" }.count
+                Text("Read \(bookCount) book\(bookCount == 1 ? "" : "s") from your library")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 4)
     }
 
     private var sourcesSection: some View {
