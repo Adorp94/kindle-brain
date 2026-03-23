@@ -7,7 +7,7 @@ actor GeminiService {
     static let shared = GeminiService()
 
     private let baseURL = "https://generativelanguage.googleapis.com/v1beta"
-    private let chatModel = "gemini-3.1-flash-lite-preview"
+    private let chatModel = "gemini-3.1-pro-preview"
     private let flashModel = "gemini-3.1-flash-lite-preview"
 
     var apiKey: String {

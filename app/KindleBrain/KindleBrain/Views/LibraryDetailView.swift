@@ -1,5 +1,22 @@
 import SwiftUI
 
+// MARK: - Cover Image Cache
+
+/// Loads cover images from disk once and caches in memory.
+/// Avoids repeated file I/O on every SwiftUI body evaluation.
+final class CoverImageCache {
+    static let shared = CoverImageCache()
+    private var cache: [Int: NSImage] = [:]
+
+    func image(for book: Book) -> NSImage? {
+        if let cached = cache[book.id] { return cached }
+        guard let url = book.coverURL,
+              let img = NSImage(contentsOf: url) else { return nil }
+        cache[book.id] = img
+        return img
+    }
+}
+
 struct LibraryDetailView: View {
     @EnvironmentObject var libraryVM: LibraryViewModel
 
@@ -54,20 +71,13 @@ struct LibraryDetailView: View {
                 // Book header card
                 HStack(alignment: .top, spacing: 20) {
                     // Cover
-                    if let url = book.coverURL {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 120)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                                    .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
-                            default:
-                                EmptyView()
-                            }
-                        }
+                    if let nsImage = CoverImageCache.shared.image(for: book) {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 120)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
                     }
 
                     VStack(alignment: .leading, spacing: 12) {
@@ -145,8 +155,10 @@ struct LibraryDetailView: View {
                     }
                     .padding(.vertical, 40)
                 } else {
-                    ForEach(libraryVM.filteredHighlights) { highlight in
-                        HighlightCard(highlight: highlight)
+                    LazyVStack(alignment: .leading, spacing: 16) {
+                        ForEach(libraryVM.filteredHighlights) { highlight in
+                            HighlightCard(highlight: highlight)
+                        }
                     }
 
                     if libraryVM.filteredHighlights.isEmpty && !libraryVM.highlightSearch.isEmpty {
@@ -179,23 +191,13 @@ struct BookGridItem: View {
         Button(action: action) {
             VStack(spacing: 10) {
                 // Cover or placeholder
-                if let url = book.coverURL {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(2/3, contentMode: .fill)
-                                .frame(height: 220)
-                                .clipped()
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                        case .failure:
-                            coverPlaceholder
-                        default:
-                            coverPlaceholder
-                                .overlay(ProgressView().scaleEffect(0.6))
-                        }
-                    }
+                if let nsImage = CoverImageCache.shared.image(for: book) {
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .aspectRatio(2/3, contentMode: .fill)
+                        .frame(height: 220)
+                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                 } else {
                     coverPlaceholder
                 }
@@ -289,6 +291,7 @@ struct HighlightCard: View {
     @State private var explanation: String?
     @State private var isExplaining = false
     @State private var showExplanation = false
+    @State private var showCopied = false
 
     private var data: DataService { DataService.shared }
     private var gemini: GeminiService { GeminiService.shared }
@@ -353,10 +356,23 @@ struct HighlightCard: View {
                 Button {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(highlight.text, forType: .string)
+                    showCopied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        showCopied = false
+                    }
                 } label: {
-                    Image(systemName: "doc.on.doc")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 3) {
+                        Image(systemName: showCopied ? "checkmark" : "doc.on.doc")
+                            .font(.caption)
+                            .foregroundStyle(showCopied ? .green : .secondary)
+                        if showCopied {
+                            Text("Copied")
+                                .font(.caption2)
+                                .foregroundStyle(.green)
+                                .transition(.opacity)
+                        }
+                    }
+                    .animation(.easeInOut(duration: 0.2), value: showCopied)
                 }
                 .buttonStyle(.plain)
                 .help("Copy highlight")
@@ -369,7 +385,7 @@ struct HighlightCard: View {
                     Image(systemName: "lightbulb.fill")
                         .font(.caption)
                         .foregroundStyle(.orange)
-                    Text(explanation)
+                    Text(parseMarkdownInline(explanation))
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .lineSpacing(2)
@@ -417,6 +433,13 @@ struct HighlightCard: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: showExplanation)
+    }
+
+    private func parseMarkdownInline(_ text: String) -> AttributedString {
+        if let md = try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
+            return md
+        }
+        return AttributedString(text)
     }
 
     private func fetchExplanation() {

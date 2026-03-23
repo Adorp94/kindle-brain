@@ -28,6 +28,7 @@ struct ChatView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 12)
                     .padding(.bottom, 20)
+                    .textSelection(.enabled)
                 }
                 .onChange(of: chatVM.messages.last?.text) { _, _ in
                     scrollToBottom(proxy)
@@ -146,6 +147,7 @@ struct MessageBubble: View {
     var isThinking: Bool = false
     var thinkingText: String = ""
     @State private var isSourcesExpanded = false
+    @State private var showCopiedSources = false
 
     var body: some View {
         VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 10) {
@@ -172,7 +174,6 @@ struct MessageBubble: View {
                     thinkingIndicator
                 } else if message.role == .user {
                     Text(message.text)
-                        .textSelection(.enabled)
                         .padding(14)
                         .background(.ultraThinMaterial)
                         .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -186,7 +187,6 @@ struct MessageBubble: View {
                         }
                 } else {
                     MarkdownTextView(text: cleanResponse(message.text))
-                        .textSelection(.enabled)
                         .padding(16)
                         .background(Color(nsColor: .controlBackgroundColor))
                         .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -250,29 +250,33 @@ struct MessageBubble: View {
 
     private var toolCallsSection: some View {
         let bookCalls = message.toolCalls.filter { $0.tool == "read_book" }
-        return DisclosureGroup(isExpanded: $isToolCallsExpanded) {
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(bookCalls) { tc in
-                    HStack(spacing: 6) {
-                        Image(systemName: "book.closed.fill")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.orange)
-                        Text(tc.args ?? "")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+        return VStack(alignment: .leading, spacing: 4) {
+            DisclosureGroup(isExpanded: $isToolCallsExpanded) {
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(bookCalls) { tc in
+                        HStack(spacing: 6) {
+                            Image(systemName: "book.closed.fill")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.orange)
+                            Text(tc.args ?? "")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
-            }
-            .padding(.leading, 20)
-            .padding(.vertical, 4)
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "brain.head.profile")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                Text("Read \(bookCalls.count) book\(bookCalls.count == 1 ? "" : "s") from your library")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .padding(.leading, 4)
+                .padding(.vertical, 4)
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "brain.head.profile")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Text("Read \(bookCalls.count) book\(bookCalls.count == 1 ? "" : "s") from your library")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -290,12 +294,10 @@ struct MessageBubble: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(source.bookTitle)
                                 .font(.caption.bold())
-                                .textSelection(.enabled)
                             if let author = source.author, !author.isEmpty {
                                 Text(author)
                                     .font(.caption2)
                                     .foregroundStyle(.tertiary)
-                                    .textSelection(.enabled)
                             }
                             if let page = source.page, page > 0 {
                                 Text("p. \(page)")
@@ -305,9 +307,9 @@ struct MessageBubble: View {
                             Text(source.highlight)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                                .lineLimit(3)
+                                .lineLimit(nil)
+                                .fixedSize(horizontal: false, vertical: true)
                                 .italic()
-                                .textSelection(.enabled)
                         }
                     }
                     .padding(10)
@@ -330,12 +332,18 @@ struct MessageBubble: View {
                     let text = message.sources.map { formatSourceForCopy($0) }.joined(separator: "\n\n")
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(text, forType: .string)
+                    showCopiedSources = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        showCopiedSources = false
+                    }
                 } label: {
-                    Label("Copy All Sources", systemImage: "doc.on.doc.fill")
+                    Label(showCopiedSources ? "Copied!" : "Copy All Sources",
+                          systemImage: showCopiedSources ? "checkmark" : "doc.on.doc.fill")
                         .font(.caption)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.orange)
+                .foregroundStyle(showCopiedSources ? .green : .orange)
+                .animation(.easeInOut(duration: 0.2), value: showCopiedSources)
                 .padding(.top, 4)
             }
             .padding(.top, 6)
@@ -371,42 +379,41 @@ struct MessageBubble: View {
 
 // MARK: - Markdown Text View
 
-/// Renders chat responses with proper markdown formatting.
-/// Uses VStack of blocks for proper blockquote styling with orange bar.
+/// Renders the entire response as a single AttributedString so text selection
+/// works across the full message — user can select across paragraphs, quotes, etc.
 struct MarkdownTextView: View {
     let text: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ForEach(Array(parseBlocks().enumerated()), id: \.offset) { _, block in
-                renderBlock(block)
-            }
-        }
+        Text(buildAttributedString())
+            .lineSpacing(5)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
-    private enum Block {
-        case heading(String, Int)       // text, level (1-3)
-        case blockquote(String)         // quote content
-        case bulletList([String])       // list items
-        case numberedList([(Int, String)])  // (number, content)
-        case divider
-        case paragraph(String)          // regular text
-    }
-
-    private func parseBlocks() -> [Block] {
+    private func buildAttributedString() -> AttributedString {
         let paragraphs = text.components(separatedBy: "\n\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
-        var blocks: [Block] = []
+        var result = AttributedString()
 
-        for block in paragraphs {
+        for (index, block) in paragraphs.enumerated() {
+            if index > 0 {
+                result += AttributedString("\n\n")
+            }
+
             if block.hasPrefix("### ") {
-                blocks.append(.heading(String(block.dropFirst(4)), 3))
+                var attr = parseInline(String(block.dropFirst(4)))
+                attr.font = .headline
+                result += attr
             } else if block.hasPrefix("## ") {
-                blocks.append(.heading(String(block.dropFirst(3)), 2))
+                var attr = parseInline(String(block.dropFirst(3)))
+                attr.font = .title3.bold()
+                result += attr
             } else if block.hasPrefix("# ") {
-                blocks.append(.heading(String(block.dropFirst(2)), 1))
+                var attr = parseInline(String(block.dropFirst(2)))
+                attr.font = .title2.bold()
+                result += attr
             } else if block.hasPrefix("> ") || block.hasPrefix(">") {
                 let content = block
                     .components(separatedBy: "\n")
@@ -417,112 +424,56 @@ struct MarkdownTextView: View {
                         return l
                     }
                     .joined(separator: "\n")
-                blocks.append(.blockquote(content))
+                var bar = AttributedString("▎ ")
+                bar.foregroundColor = .orange
+                result += bar
+                var quote = parseInline(content)
+                quote.foregroundColor = .secondary
+                result += quote
             } else if block.hasPrefix("- ") || block.hasPrefix("* ") {
-                let items = block.components(separatedBy: "\n")
-                    .map { $0.trimmingCharacters(in: .whitespaces) }
-                    .filter { $0.hasPrefix("- ") || $0.hasPrefix("* ") }
-                    .map { String($0.dropFirst(2)) }
-                blocks.append(.bulletList(items))
-            } else if block.first?.isNumber == true && block.contains(". ") {
-                // Numbered list: "1. ...\n2. ...\n3. ..."
                 let lines = block.components(separatedBy: "\n")
-                var items: [(Int, String)] = []
-                for line in lines {
+                for (i, line) in lines.enumerated() {
                     let trimmed = line.trimmingCharacters(in: .whitespaces)
-                    // Match "1. ", "2. ", etc.
-                    if let dotIndex = trimmed.firstIndex(of: "."),
-                       let num = Int(trimmed[trimmed.startIndex..<dotIndex]),
-                       trimmed.index(after: dotIndex) < trimmed.endIndex {
-                        let content = String(trimmed[trimmed.index(dotIndex, offsetBy: 2)...])
-                        items.append((num, content))
-                    } else if !trimmed.isEmpty && !items.isEmpty {
-                        // Continuation line — append to last item
-                        items[items.count - 1].1 += " " + trimmed
+                    if i > 0 { result += AttributedString("\n") }
+                    if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
+                        let content = String(trimmed.dropFirst(2))
+                        var bullet = AttributedString("  • ")
+                        bullet.foregroundColor = .orange
+                        result += bullet
+                        result += parseInline(content)
+                    } else if !trimmed.isEmpty {
+                        result += parseInline(trimmed)
                     }
                 }
-                if !items.isEmpty {
-                    blocks.append(.numberedList(items))
-                } else {
-                    blocks.append(.paragraph(block))
+            } else if block.first?.isNumber == true, block.contains(". ") {
+                let lines = block.components(separatedBy: "\n")
+                for (i, line) in lines.enumerated() {
+                    let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    if i > 0 { result += AttributedString("\n") }
+                    if let dotIdx = trimmed.firstIndex(of: "."),
+                       let _ = Int(trimmed[trimmed.startIndex..<dotIdx]),
+                       trimmed.index(after: dotIdx) < trimmed.endIndex {
+                        let numStr = String(trimmed[trimmed.startIndex...dotIdx])
+                        var numAttr = AttributedString(numStr + " ")
+                        numAttr.foregroundColor = .orange
+                        numAttr.font = .body.bold()
+                        result += numAttr
+                        let content = String(trimmed[trimmed.index(dotIdx, offsetBy: 2)...])
+                        result += parseInline(content)
+                    } else if !trimmed.isEmpty {
+                        result += parseInline(trimmed)
+                    }
                 }
             } else if block.hasPrefix("***") || block.hasPrefix("---") {
-                blocks.append(.divider)
+                var divider = AttributedString("─────────────────")
+                divider.foregroundColor = .gray.opacity(0.4)
+                result += divider
             } else {
-                blocks.append(.paragraph(block))
+                result += parseInline(block)
             }
         }
-        return blocks
-    }
 
-    @ViewBuilder
-    private func renderBlock(_ block: Block) -> some View {
-        switch block {
-        case .heading(let text, let level):
-            switch level {
-            case 1:
-                Text(parseInline(text))
-                    .font(.title2.bold())
-            case 2:
-                Text(parseInline(text))
-                    .font(.title3.bold())
-            default:
-                Text(parseInline(text))
-                    .font(.headline)
-            }
-
-        case .blockquote(let content):
-            HStack(alignment: .top, spacing: 10) {
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(Color.orange)
-                    .frame(width: 3)
-
-                Text(parseInline(content))
-                    .font(.body)
-                    .italic()
-                    .foregroundStyle(.secondary)
-                    .lineSpacing(4)
-            }
-            .padding(.vertical, 4)
-
-        case .bulletList(let items):
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    HStack(alignment: .top, spacing: 8) {
-                        Text("\u{2022}")
-                            .foregroundStyle(.orange)
-                            .font(.body)
-                        Text(parseInline(item))
-                            .font(.body)
-                            .lineSpacing(3)
-                    }
-                }
-            }
-
-        case .numberedList(let items):
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    HStack(alignment: .top, spacing: 8) {
-                        Text("\(item.0).")
-                            .font(.body.bold())
-                            .foregroundStyle(.orange)
-                            .frame(width: 20, alignment: .trailing)
-                        Text(parseInline(item.1))
-                            .font(.body)
-                            .lineSpacing(3)
-                    }
-                }
-            }
-
-        case .divider:
-            Divider()
-                .padding(.vertical, 4)
-
-        case .paragraph(let text):
-            Text(parseInline(text))
-                .font(.body)
-                .lineSpacing(5)
-        }
+        return result
     }
 
     private func parseInline(_ text: String) -> AttributedString {

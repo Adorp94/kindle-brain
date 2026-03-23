@@ -22,10 +22,10 @@ struct Book: Identifiable, Codable, Hashable {
 
     var coverURL: URL? {
         guard hasCover == true else { return nil }
-        let dataDir = DataService.resolveDataDir()
-        let coverPath = dataDir.appendingPathComponent("covers/\(id).jpg")
-        return FileManager.default.fileExists(atPath: coverPath.path) ? coverPath : nil
+        return Book.coversDir.appendingPathComponent("\(id).jpg")
     }
+
+    private static let coversDir: URL = DataService.resolveDataDir().appendingPathComponent("covers")
 }
 
 struct Highlight: Identifiable, Codable {
