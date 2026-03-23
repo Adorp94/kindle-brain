@@ -30,8 +30,20 @@ struct ContentView: View {
                 }
             }
         }
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Picker("Tab", selection: $selectedTab) {
+                    ForEach(Tab.allCases, id: \.self) { tab in
+                        Label(tab.rawValue, systemImage: iconForTab(tab))
+                            .tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 260)
+            }
+        }
+        .focusedSceneValue(\.selectedTab, $selectedTab)
         .task {
-            // Wait for server, then load data
             while !serverManager.isRunning {
                 try? await Task.sleep(nanoseconds: 500_000_000)
             }
@@ -55,16 +67,6 @@ struct ContentView: View {
 
     private var sidebar: some View {
         VStack(spacing: 0) {
-            // Tab picker
-            Picker("", selection: $selectedTab) {
-                ForEach(Tab.allCases, id: \.self) { tab in
-                    Label(tab.rawValue, systemImage: iconForTab(tab))
-                        .tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding()
-
             switch selectedTab {
             case .chat:
                 chatSidebar
@@ -85,12 +87,14 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Chat Sidebar
+
     private var chatSidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Server status
             HStack(spacing: 8) {
                 Circle()
-                    .fill(serverManager.isRunning ? Color.green : Color.orange)
+                    .fill(serverManager.isRunning ? Color(nsColor: .systemGreen) : Color(nsColor: .systemOrange))
                     .frame(width: 8, height: 8)
                 Text(serverManager.statusMessage)
                     .font(.caption)
@@ -100,6 +104,8 @@ struct ContentView: View {
             .padding(.horizontal, 16)
             .padding(.top, 12)
             .padding(.bottom, 8)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Server status: \(serverManager.statusMessage)")
 
             // New Chat button
             Button {
@@ -111,6 +117,7 @@ struct ContentView: View {
             .buttonStyle(.bordered)
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
+            .keyboardShortcut("n", modifiers: .command)
 
             Divider()
 
@@ -119,7 +126,6 @@ struct ContentView: View {
                 VStack(spacing: 16) {
                     Spacer()
 
-                    // Quick questions when no history
                     GroupBox {
                         VStack(alignment: .leading, spacing: 4) {
                             ForEach(chatVM.suggestions, id: \.self) { suggestion in
@@ -140,6 +146,7 @@ struct ContentView: View {
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityLabel("Ask: \(suggestion)")
                             }
                         }
                     } label: {
@@ -176,6 +183,13 @@ struct ContentView: View {
                                 : Color.clear
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                Task { await chatVM.deleteConversation(conv) }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                     }
                     .onDelete { indexSet in
                         for index in indexSet {
@@ -192,9 +206,10 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Memory Sidebar
+
     private var memorySidebar: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Memory stats summary
             GroupBox {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("\(memoryVM.memories.count) facts learned", systemImage: "lightbulb.fill")
@@ -214,7 +229,6 @@ struct ContentView: View {
 
             Divider()
 
-            // Quick list of memory categories
             if !memoryVM.memories.isEmpty {
                 List {
                     let categories = Set(memoryVM.memories.map(\.category)).sorted()
@@ -257,27 +271,25 @@ struct ContentView: View {
         }
     }
 
-    private var librarySidebar: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("Search books...", text: $libraryVM.searchQuery)
-                    .textFieldStyle(.plain)
-            }
-            .padding(8)
-            .background(Color.primary.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .padding()
+    // MARK: - Library Sidebar
 
-            List(libraryVM.filteredBooks, selection: $libraryVM.selectedBook) { book in
-                BookRow(book: book)
-                    .tag(book)
-            }
-            .onChange(of: libraryVM.selectedBook) { _, newBook in
-                if let book = newBook {
-                    libraryVM.selectBook(book)
+    private var librarySidebar: some View {
+        List(libraryVM.filteredBooks, selection: $libraryVM.selectedBook) { book in
+            BookRow(book: book)
+                .tag(book)
+                .contextMenu {
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(book.title, forType: .string)
+                    } label: {
+                        Label("Copy Title", systemImage: "doc.on.doc")
+                    }
                 }
+        }
+        .searchable(text: $libraryVM.searchQuery, prompt: "Search books...")
+        .onChange(of: libraryVM.selectedBook) { _, newBook in
+            if let book = newBook {
+                libraryVM.selectBook(book)
             }
         }
     }

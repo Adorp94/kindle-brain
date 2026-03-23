@@ -61,19 +61,17 @@ struct ChatView: View {
                     }
                 }
                 .padding(12)
-                .background(Color.primary.opacity(0.04))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
 
             if chatVM.isLoading {
-                Button {
+                Button(role: .destructive) {
                     chatVM.stop()
                 } label: {
                     Image(systemName: "stop.circle.fill")
                         .font(.system(size: 30))
-                        .foregroundStyle(Color.red.opacity(0.8))
                 }
                 .buttonStyle(.plain)
                 .help("Stop generating")
+                .accessibilityLabel("Stop generating response")
             } else {
                 Button {
                     Task { await chatVM.send() }
@@ -89,10 +87,19 @@ struct ChatView: View {
                 .buttonStyle(.plain)
                 .disabled(chatVM.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .keyboardShortcut(.return, modifiers: .command)
+                .accessibilityLabel("Send message")
             }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
+        .background(.ultraThinMaterial)
+        .onKeyPress(.escape) {
+            if chatVM.isLoading {
+                chatVM.stop()
+                return .handled
+            }
+            return .ignored
+        }
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
@@ -109,11 +116,11 @@ struct ChatView: View {
 
             ZStack {
                 Circle()
-                    .fill(Color.accentColor.opacity(0.1))
+                    .fill(.thinMaterial)
                     .frame(width: 100, height: 100)
                 Image(systemName: "brain.head.profile")
                     .font(.system(size: 44))
-                    .foregroundStyle(Color.accentColor.opacity(0.7))
+                    .foregroundStyle(Color.accentColor)
             }
 
             VStack(spacing: 8) {
@@ -167,14 +174,30 @@ struct MessageBubble: View {
                     Text(message.text)
                         .textSelection(.enabled)
                         .padding(14)
-                        .background(Color.accentColor.opacity(0.1))
+                        .background(.ultraThinMaterial)
                         .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .contextMenu {
+                            Button {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(message.text, forType: .string)
+                            } label: {
+                                Label("Copy", systemImage: "doc.on.doc")
+                            }
+                        }
                 } else {
                     MarkdownTextView(text: cleanResponse(message.text))
                         .textSelection(.enabled)
                         .padding(16)
-                        .background(Color.secondary.opacity(0.05))
+                        .background(Color(nsColor: .controlBackgroundColor))
                         .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .contextMenu {
+                            Button {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(message.text, forType: .string)
+                            } label: {
+                                Label("Copy Response", systemImage: "doc.on.doc")
+                            }
+                        }
                 }
 
                 if message.role == .assistant { Spacer(minLength: 60) }
@@ -219,7 +242,7 @@ struct MessageBubble: View {
         }
         .padding(16)
         .frame(maxWidth: 400, alignment: .leading)
-        .background(Color.secondary.opacity(0.05))
+        .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
@@ -289,7 +312,7 @@ struct MessageBubble: View {
                     }
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.orange.opacity(0.04))
+                    .background(.ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .contextMenu {
                         Button {

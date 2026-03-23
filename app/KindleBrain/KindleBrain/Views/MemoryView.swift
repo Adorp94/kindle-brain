@@ -62,6 +62,7 @@ struct MemoryView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .help("Refresh memory")
+                .accessibilityLabel("Refresh memory data")
             }
         }
         .task {
@@ -167,6 +168,7 @@ struct MemoryView: View {
 struct MemoryFactRow: View {
     let memory: UserMemory
     let onDelete: () -> Void
+    @State private var showDeleteAlert = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -195,7 +197,7 @@ struct MemoryFactRow: View {
             Spacer()
 
             Button(role: .destructive) {
-                onDelete()
+                showDeleteAlert = true
             } label: {
                 Image(systemName: "trash")
                     .font(.caption)
@@ -203,8 +205,28 @@ struct MemoryFactRow: View {
             }
             .buttonStyle(.plain)
             .help("Delete this memory")
+            .accessibilityLabel("Delete memory fact")
         }
         .padding(.vertical, 4)
+        .contextMenu {
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(memory.fact, forType: .string)
+            } label: {
+                Label("Copy", systemImage: "doc.on.doc")
+            }
+            Button(role: .destructive) {
+                showDeleteAlert = true
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        .alert("Delete Memory", isPresented: $showDeleteAlert) {
+            Button("Delete", role: .destructive) { onDelete() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This memory fact will be permanently removed.")
+        }
     }
 
     private func iconForCategory(_ category: String) -> String {
@@ -247,7 +269,7 @@ struct ConversationSummaryRow: View {
                                 .font(.caption2)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(Color.orange.opacity(0.1))
+                                .background(.ultraThinMaterial)
                                 .clipShape(Capsule())
                         }
                     }

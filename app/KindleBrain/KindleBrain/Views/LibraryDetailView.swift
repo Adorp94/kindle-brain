@@ -89,7 +89,7 @@ struct LibraryDetailView: View {
                 }
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.primary.opacity(0.03))
+                .background(.ultraThinMaterial)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
 
                 if let summary = libraryVM.bookInfo?.summary, !summary.isEmpty {
@@ -100,7 +100,7 @@ struct LibraryDetailView: View {
                     }
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.accentColor.opacity(0.04))
+                    .background(.ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
 
@@ -133,7 +133,7 @@ struct LibraryDetailView: View {
                         }
                     }
                     .padding(6)
-                    .background(Color.primary.opacity(0.04))
+                    .background(.ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
 
@@ -222,26 +222,28 @@ struct BookGridItem: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button { action() } label: {
+                Label("View Book", systemImage: "book")
+            }
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(book.title, forType: .string)
+            } label: {
+                Label("Copy Title", systemImage: "doc.on.doc")
+            }
+        }
     }
 
     private var coverPlaceholder: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 8)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.accentColor.opacity(0.15),
-                            Color.accentColor.opacity(0.05),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+                .fill(.regularMaterial)
 
             VStack(spacing: 8) {
                 Image(systemName: "book.closed.fill")
                     .font(.system(size: 28))
-                    .foregroundStyle(.secondary.opacity(0.5))
+                    .foregroundStyle(.secondary)
                 Text(book.title)
                     .font(.system(size: 10, weight: .medium))
                     .multilineTextAlignment(.center)
@@ -254,7 +256,7 @@ struct BookGridItem: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
+                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
         )
     }
 }
@@ -298,13 +300,13 @@ struct HighlightCard: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 3)
-                    .background(Color.accentColor.opacity(0.6))
+                    .background(Color.accentColor)
                     .clipShape(Capsule())
             }
 
             HStack(alignment: .top, spacing: 12) {
                 Rectangle()
-                    .fill(Color.accentColor.opacity(0.5))
+                    .fill(Color.accentColor)
                     .frame(width: 3)
 
                 Text(highlight.text)
@@ -345,6 +347,7 @@ struct HighlightCard: View {
                 }
                 .buttonStyle(.plain)
                 .help("Explain this highlight")
+                .accessibilityLabel(showExplanation ? "Hide explanation" : "Explain this highlight")
 
                 Button {
                     NSPasteboard.general.clearContents()
@@ -356,6 +359,7 @@ struct HighlightCard: View {
                 }
                 .buttonStyle(.plain)
                 .help("Copy highlight")
+                .accessibilityLabel("Copy highlight text")
             }
 
             // Explanation block
@@ -370,7 +374,7 @@ struct HighlightCard: View {
                         .lineSpacing(2)
                 }
                 .padding(10)
-                .background(Color.orange.opacity(0.06))
+                .background(.ultraThinMaterial)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
@@ -386,17 +390,31 @@ struct HighlightCard: View {
                         .italic()
                 }
                 .padding(10)
-                .background(Color.orange.opacity(0.06))
+                .background(.ultraThinMaterial)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
         }
         .padding(16)
-        .background(Color.primary.opacity(0.02))
+        .background(Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.secondary.opacity(0.08), lineWidth: 1)
+                .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
         )
+        .contextMenu {
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(highlight.text, forType: .string)
+            } label: {
+                Label("Copy Highlight", systemImage: "doc.on.doc")
+            }
+            Button {
+                if explanation != nil { showExplanation.toggle() }
+                else { fetchExplanation() }
+            } label: {
+                Label("Explain", systemImage: "lightbulb")
+            }
+        }
         .animation(.easeInOut(duration: 0.2), value: showExplanation)
     }
 
