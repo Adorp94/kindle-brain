@@ -33,14 +33,7 @@ struct ContentView: View {
                 .frame(width: 260)
             }
             ToolbarItem(placement: .automatic) {
-                Button {
-                    // Try macOS 14+ API first, fall back to older selector
-                    if #available(macOS 14, *) {
-                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                    } else {
-                        NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-                    }
-                } label: {
+                SettingsLink {
                     Image(systemName: "gearshape")
                 }
                 .help("Settings (⌘,)")
