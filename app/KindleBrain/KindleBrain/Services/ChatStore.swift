@@ -13,14 +13,31 @@ actor ChatStore {
         let dir = appSupport.appendingPathComponent("KindleBrain", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         dbPath = dir.appendingPathComponent("chats.db").path
-        openDB()
-        createTables()
-    }
 
-    private func openDB() {
+        // Open DB inline in init (db is a stored property, accessible here)
         if sqlite3_open(dbPath, &db) != SQLITE_OK {
             print("[ChatStore] Failed to open DB at \(dbPath)")
         }
+
+        // Create tables inline
+        let sql = """
+        CREATE TABLE IF NOT EXISTS conversations (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS messages (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            text TEXT NOT NULL,
+            sources_json TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+        );
+        """
+        sqlite3_exec(db, sql, nil, nil, nil)
     }
 
     private func createTables() {
