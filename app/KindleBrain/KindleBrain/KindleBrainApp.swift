@@ -19,15 +19,22 @@ extension FocusedValues {
 struct KindleBrainApp: App {
     @StateObject private var chatVM = ChatViewModel()
     @StateObject private var libraryVM = LibraryViewModel()
+    @AppStorage("onboardingComplete") private var onboardingComplete = false
 
     @FocusedBinding(\.selectedTab) private var selectedTab
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .frame(minWidth: 600, minHeight: 400)
-                .environmentObject(chatVM)
-                .environmentObject(libraryVM)
+            Group {
+                if onboardingComplete {
+                    ContentView()
+                        .environmentObject(chatVM)
+                        .environmentObject(libraryVM)
+                } else {
+                    OnboardingView()
+                }
+            }
+            .frame(minWidth: 600, minHeight: 400)
         }
         .windowStyle(.automatic)
         .windowToolbarStyle(.unified)

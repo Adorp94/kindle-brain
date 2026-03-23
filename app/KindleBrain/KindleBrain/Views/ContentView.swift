@@ -32,6 +32,15 @@ struct ContentView: View {
                 .pickerStyle(.segmented)
                 .frame(width: 260)
             }
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .help("Settings")
+                .keyboardShortcut(",", modifiers: .command)
+            }
         }
         .focusedSceneValue(\.selectedTab, $selectedTab)
         .task {

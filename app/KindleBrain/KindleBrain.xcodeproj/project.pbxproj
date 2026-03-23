@@ -23,6 +23,7 @@
 		A100000E /* DataService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000F; };
 		A100000F /* GeminiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000010; };
 		A1000010 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000011; };
+		A1000011 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000012; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -43,6 +44,7 @@
 		A200000F /* DataService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataService.swift; sourceTree = "<group>"; };
 		A2000010 /* GeminiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiService.swift; sourceTree = "<group>"; };
 		A2000011 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A2000012 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		A3000001 /* KindleBrain.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KindleBrain.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -115,6 +117,7 @@
 				A2000009 /* LibraryDetailView.swift */,
 				A200000E /* MemoryView.swift */,
 				A2000011 /* SettingsView.swift */,
+				A2000012 /* OnboardingView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -186,6 +189,7 @@
 		A100000E /* DataService.swift in Sources */,
 		A100000F /* GeminiService.swift in Sources */,
 		A1000010 /* SettingsView.swift in Sources */,
+		A1000011 /* OnboardingView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
