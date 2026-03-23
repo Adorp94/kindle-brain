@@ -243,10 +243,10 @@ async def chat(body: dict):
 
 @app.post("/chat/stream")
 async def chat_stream(body: dict):
-    """Streaming chat with file-based library tools.
+    """Streaming chat with Gemini Pro using file-based library tools.
 
-    Phase 1: Flash Lite with browse_library + read_book tools to gather context.
-    Phase 2: Pro streams the synthesis with thinking/reasoning.
+    Single-phase: Pro reads catalog, picks books, reads them, and streams
+    the synthesis — all in one agentic conversation with tool use.
     """
     import asyncio
     import json
@@ -259,133 +259,54 @@ async def chat_stream(body: dict):
 
     async def event_generator():
         gemini = get_gemini()
-
-        # Phase 1: Flash Lite reads catalog + relevant books via tools
-        browse_library, read_book, books_read, tool_calls = _create_library_tools()
-
-        retrieval_prompt = (
-            "You are a research librarian. The user asked a question about their reading library.\n\n"
-            "1. Call browse_library() to see all available books.\n"
-            "2. Identify 5-8 books most relevant to the question — think LATERALLY.\n"
-            "3. Call read_book() for each relevant book.\n"
-            "4. After reading all books, briefly list what you found.\n\n"
-            f"User's question: {message}"
-        )
-
-        def _retrieve():
-            return gemini.models.generate_content(
-                model=SUMMARY_MODEL,
-                contents=retrieval_prompt,
-                config=types.GenerateContentConfig(
-                    tools=[browse_library, read_book],
-                    temperature=0.3,
-                    max_output_tokens=512,
-                ),
-            )
-
-        retrieval_response = await asyncio.to_thread(_retrieve)
-
-        # Emit tool call events so the UI can show what happened
-        for tc in tool_calls:
-            yield {"event": "tool_call", "data": json.dumps(tc, ensure_ascii=False)}
-
-        # Collect the book contents that were read
-        # The tools already executed and books_read has the list
-        book_contents = []
-        for title in books_read:
-            # Read the file content for the synthesis prompt
-            for f in BOOKS_MD_DIR.glob("*.md"):
-                if f.name in {"LIBRARY.md", "CATALOG.md"}:
-                    continue
-                if title.lower() in f.stem.lower():
-                    content = f.read_text(encoding='utf-8')
-                    # Strip golden nuggets for lighter context
-                    content = re.sub(
-                        r'<details>\s*<summary>Golden Nugget \(context\)</summary>\s*.*?\s*</details>\s*',
-                        '', content, flags=re.DOTALL
-                    )
-                    book_contents.append(content)
-                    break
-
-        # Send sources (books that were read)
-        sources = [{'book_title': title, 'author': '', 'page': None,
-                    'highlight': f'Read full book', 'score': None}
-                   for title in books_read]
-        yield {"event": "sources", "data": json.dumps(sources, ensure_ascii=False)}
-
-        # Phase 2: Stream synthesis with Pro
-        context_block = "\n\n---\n\n".join(book_contents)
-        synthesis_prompt = (
-            f"CONTEXTO DE LA BIBLIOTECA ({len(books_read)} libros leídos):\n\n"
-            f"{context_block}\n\n"
-            f"---\n\n"
-            f"PREGUNTA DEL USUARIO: {message}"
-        )
         system_prompt = get_system_prompt_with_memory()
 
+        browse_library, read_book, books_read, tool_calls = _create_library_tools()
+
+        # Pro handles everything: reads catalog, picks books, reads them, synthesizes
+        # The SDK handles the agentic tool-calling loop automatically
         queue = asyncio.Queue()
         collected_text = []
 
-        async def run_in_thread():
-            def _stream():
-                response = gemini.models.generate_content_stream(
-                    model=CHAT_MODEL,
-                    contents=synthesis_prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_prompt,
-                        temperature=1.0,
-                        max_output_tokens=8192,
-                        thinking_config=types.ThinkingConfig(
-                            thinking_level="high",
-                            include_thoughts=True,
-                        ),
-                    ),
-                )
-                for chunk in response:
-                    try:
-                        for part in chunk.candidates[0].content.parts:
-                            if part.thought:
-                                text = part.text or ""
-                                if text.strip():
-                                    asyncio.run_coroutine_threadsafe(
-                                        queue.put(("thinking", text)), loop
-                                    )
-                            elif part.text:
-                                asyncio.run_coroutine_threadsafe(
-                                    queue.put(("token", part.text)), loop
-                                )
-                    except (AttributeError, IndexError):
-                        if chunk.text:
-                            asyncio.run_coroutine_threadsafe(
-                                queue.put(("token", chunk.text)), loop
-                            )
-                asyncio.run_coroutine_threadsafe(
-                    queue.put(None), loop
-                )
+        def _generate():
+            """Run Pro with tools. SDK auto-executes tool calls and returns final response."""
+            return gemini.models.generate_content(
+                model=CHAT_MODEL,
+                contents=message,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    tools=[browse_library, read_book],
+                    temperature=1.0,
+                    max_output_tokens=8192,
+                ),
+            )
 
-            loop = asyncio.get_event_loop()
-            await asyncio.to_thread(_stream)
+        # Phase 1: Pro reads books via tools (non-streaming, tool loop)
+        response = await asyncio.to_thread(_generate)
 
-        stream_task = asyncio.create_task(run_in_thread())
+        # Emit tool calls so the UI shows what books were read
+        for tc in tool_calls:
+            yield {"event": "tool_call", "data": json.dumps(tc, ensure_ascii=False)}
 
-        while True:
-            item = await queue.get()
-            if item is None:
-                break
-            event_type, text = item
-            if event_type == "token":
-                collected_text.append(text)
-            safe_text = text.replace("\n", "\\n")
-            yield {"event": event_type, "data": safe_text}
+        # Phase 2: Stream the final text token by token
+        # Since generate_content with tools returns the full response,
+        # we simulate streaming for smooth UX
+        full_text = response.text or ""
+        # Stream in chunks for smooth rendering
+        chunk_size = 20  # characters per chunk
+        for i in range(0, len(full_text), chunk_size):
+            chunk = full_text[i:i + chunk_size]
+            collected_text.append(chunk)
+            safe_text = chunk.replace("\n", "\\n")
+            yield {"event": "token", "data": safe_text}
+            await asyncio.sleep(0.01)  # Small delay for smooth streaming
 
-        await stream_task
         yield {"event": "done", "data": ""}
 
         # Extract memories in background
-        full_response = "".join(collected_text)
         asyncio.create_task(asyncio.to_thread(
             extract_memories_from_conversation,
-            message, full_response, books_read,
+            message, full_text, books_read,
             conversation_id, gemini,
         ))
 

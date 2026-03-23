@@ -152,6 +152,11 @@ struct MessageBubble: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal, 4)
 
+            // Tool calls ABOVE response (like Claude's "Used kindle-clippings integration")
+            if message.role == .assistant && !message.toolCalls.isEmpty {
+                toolCallsSection
+            }
+
             // Message content
             HStack(alignment: .top) {
                 if message.role == .user { Spacer(minLength: 120) }
@@ -175,20 +180,15 @@ struct MessageBubble: View {
                 if message.role == .assistant { Spacer(minLength: 60) }
             }
 
-            // Tool calls (like Claude's "Used kindle-clippings integration")
-            if !message.toolCalls.isEmpty {
-                toolCallsSection
-            }
-
-            // Sources
-            if !message.sources.isEmpty {
+            // Sources (only show if no tool calls — avoid redundancy)
+            if !message.sources.isEmpty && message.toolCalls.isEmpty {
                 sourcesSection
             }
         }
         .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
     }
 
-    /// Single thinking/loading indicator with reasoning status
+    /// Loading indicator while Pro reads books and synthesizes
     private var thinkingIndicator: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
@@ -196,25 +196,25 @@ struct MessageBubble: View {
                     .scaleEffect(0.8)
                     .tint(Color.accentColor)
 
-                if thinkingText.isEmpty {
-                    Text("Searching through your highlights...")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("Reasoning...")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
+                Text("Reading your library...")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
 
-            if !thinkingText.isEmpty {
-                // Show a preview of the model's thinking
-                let preview = String(thinkingText.suffix(200))
-                Text(preview)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(3)
-                    .italic()
+            // Show books being read in real-time
+            if !message.toolCalls.isEmpty {
+                let bookCalls = message.toolCalls.filter { $0.tool == "read_book" }
+                if !bookCalls.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "book.closed.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                        Text(bookCalls.map { $0.args ?? "" }.joined(separator: ", "))
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(2)
+                    }
+                }
             }
         }
         .padding(16)
