@@ -51,48 +51,66 @@ struct ChatView: View {
     // MARK: - Input Bar
 
     private var inputBar: some View {
-        HStack(alignment: .bottom, spacing: 10) {
-            TextField("Ask about your reading highlights...", text: $chatVM.inputText, axis: .vertical)
-                .textFieldStyle(.plain)
-                .lineLimit(1...6)
-                .focused($isInputFocused)
-                .onSubmit {
-                    if !chatVM.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        VStack(spacing: 0) {
+            HStack(alignment: .bottom, spacing: 10) {
+                TextField("Ask about your reading highlights...", text: $chatVM.inputText, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .lineLimit(1...6)
+                    .focused($isInputFocused)
+                    .onSubmit {
+                        if !chatVM.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Task { await chatVM.send() }
+                        }
+                    }
+                    .padding(12)
+
+                if chatVM.isLoading {
+                    Button(role: .destructive) {
+                        chatVM.stop()
+                    } label: {
+                        Image(systemName: "stop.circle.fill")
+                            .font(.system(size: 30))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Stop generating")
+                    .accessibilityLabel("Stop generating response")
+                } else {
+                    Button {
                         Task { await chatVM.send() }
+                    } label: {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 30))
+                            .foregroundStyle(
+                                chatVM.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                    ? Color.gray.opacity(0.3)
+                                    : Color.accentColor
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(chatVM.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .keyboardShortcut(.return, modifiers: .command)
+                    .accessibilityLabel("Send message")
+                }
+            }
+
+            // Model picker
+            HStack {
+                Picker("", selection: $chatVM.selectedModel) {
+                    ForEach(ChatModel.allCases) { model in
+                        Text(model.shortName).tag(model)
                     }
                 }
-                .padding(12)
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 400)
+                .help("Select AI model for chat")
 
-            if chatVM.isLoading {
-                Button(role: .destructive) {
-                    chatVM.stop()
-                } label: {
-                    Image(systemName: "stop.circle.fill")
-                        .font(.system(size: 30))
-                }
-                .buttonStyle(.plain)
-                .help("Stop generating")
-                .accessibilityLabel("Stop generating response")
-            } else {
-                Button {
-                    Task { await chatVM.send() }
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 30))
-                        .foregroundStyle(
-                            chatVM.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                ? Color.gray.opacity(0.3)
-                                : Color.accentColor
-                        )
-                }
-                .buttonStyle(.plain)
-                .disabled(chatVM.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .keyboardShortcut(.return, modifiers: .command)
-                .accessibilityLabel("Send message")
+                Spacer()
             }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 10)
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 14)
+        .padding(.top, 14)
         .background(.ultraThinMaterial)
         .onKeyPress(.escape) {
             if chatVM.isLoading {

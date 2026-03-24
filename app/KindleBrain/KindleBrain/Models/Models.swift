@@ -1,5 +1,45 @@
 import Foundation
 
+// MARK: - Chat Model Selection
+
+enum ChatModel: String, CaseIterable, Identifiable {
+    case geminiPro = "gemini-3.1-pro-preview"
+    case geminiFlashLite = "gemini-3.1-flash-lite-preview"
+    case grokReasoning = "grok-4.20-0309"
+    case grokFast = "grok-4-1-fast"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .geminiPro: return "Gemini 3.1 Pro"
+        case .geminiFlashLite: return "Gemini 3.1 Flash Lite"
+        case .grokReasoning: return "Grok 4.20 Reasoning"
+        case .grokFast: return "Grok 4-1 Fast"
+        }
+    }
+
+    var provider: ChatProvider {
+        switch self {
+        case .geminiPro, .geminiFlashLite: return .gemini
+        case .grokReasoning, .grokFast: return .xai
+        }
+    }
+
+    var shortName: String {
+        switch self {
+        case .geminiPro: return "Gemini Pro"
+        case .geminiFlashLite: return "Flash Lite"
+        case .grokReasoning: return "Grok 4.20"
+        case .grokFast: return "Grok Fast"
+        }
+    }
+}
+
+enum ChatProvider {
+    case gemini, xai
+}
+
 struct Book: Identifiable, Codable, Hashable {
     let id: Int
     let title: String

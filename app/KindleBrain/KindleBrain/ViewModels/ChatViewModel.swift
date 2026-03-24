@@ -8,9 +8,11 @@ class ChatViewModel: ObservableObject {
     @Published var thinkingText = ""
     @Published var conversations: [Conversation] = []
     @Published var currentConversationId: String?
+    @Published var selectedModel: ChatModel = .geminiPro
 
     private var data: DataService { DataService.shared }
     private var gemini: GeminiService { GeminiService.shared }
+    private var xai: XAIService { XAIService.shared }
     private let store = ChatStore.shared
     private var streamTask: Task<Void, Never>?
 
@@ -23,7 +25,7 @@ class ChatViewModel: ObservableObject {
 
     // MARK: - Library tools for Gemini
 
-    private let libraryTools: [GeminiService.ToolDefinition] = [
+    private let geminiTools: [GeminiService.ToolDefinition] = [
         .init(
             name: "browse_library",
             description: """
@@ -41,6 +43,29 @@ class ChatViewModel: ObservableObject {
                 Call browse_library first to identify which books to read.
                 """,
             parameters: ["book_title": ["type": "STRING", "description": "Partial title to match"]]
+        )
+    ]
+
+    // MARK: - Library tools for xAI (OpenAI format)
+
+    private let xaiTools: [XAIService.ToolDef] = [
+        .init(
+            name: "browse_library",
+            description: """
+                Browse the compact catalog of all books. ALWAYS call this FIRST.
+                Returns descriptions, tags, and cross-book links for all books.
+                Think LATERALLY: biographies teach about leadership, philosophy about business.
+                Identify 5-8 relevant books, then call read_book for each.
+                """,
+            parameters: [:]
+        ),
+        .init(
+            name: "read_book",
+            description: """
+                Read a book's full file with fingerprint, highlights, and chapter summaries.
+                Call browse_library first to identify which books to read.
+                """,
+            parameters: ["book_title": "Partial title to match"]
         )
     ]
 
@@ -137,10 +162,12 @@ class ChatViewModel: ObservableObject {
         messages.append(assistantMessage)
         let assistantIndex = messages.count - 1
 
+        let model = selectedModel
+
         streamTask = Task {
             do {
                 // Tool executor runs locally — reads files from disk
-                let toolExecutor: GeminiService.ToolExecutor = { [data] name, args in
+                let toolExecutor: @Sendable (String, [String: Any]) -> String = { name, args in
                     switch name {
                     case "browse_library":
                         let dataDir = DataService.resolveDataDir()
@@ -179,23 +206,47 @@ class ChatViewModel: ObservableObject {
                     }
                 }
 
-                let stream = await gemini.chatStream(
-                    message: text,
-                    systemPrompt: systemPrompt,
-                    tools: libraryTools,
-                    executeToolCall: toolExecutor
-                )
+                // Dispatch to the right provider
+                switch model.provider {
+                case .gemini:
+                    let stream = await gemini.chatStream(
+                        message: text,
+                        systemPrompt: systemPrompt,
+                        tools: geminiTools,
+                        executeToolCall: toolExecutor
+                    )
+                    for try await event in stream {
+                        if Task.isCancelled { break }
+                        switch event {
+                        case .toolCall(let info):
+                            messages[assistantIndex].toolCalls.append(info)
+                        case .token(let token):
+                            if thinkingText != "" { thinkingText = "" }
+                            messages[assistantIndex].text += token
+                        case .done:
+                            break
+                        }
+                    }
 
-                for try await event in stream {
-                    if Task.isCancelled { break }
-                    switch event {
-                    case .toolCall(let info):
-                        messages[assistantIndex].toolCalls.append(info)
-                    case .token(let token):
-                        if thinkingText != "" { thinkingText = "" }
-                        messages[assistantIndex].text += token
-                    case .done:
-                        break
+                case .xai:
+                    let stream = await xai.chatStream(
+                        model: model.rawValue,
+                        message: text,
+                        systemPrompt: systemPrompt,
+                        tools: xaiTools,
+                        executeToolCall: toolExecutor
+                    )
+                    for try await event in stream {
+                        if Task.isCancelled { break }
+                        switch event {
+                        case .toolCall(let info):
+                            messages[assistantIndex].toolCalls.append(info)
+                        case .token(let token):
+                            if thinkingText != "" { thinkingText = "" }
+                            messages[assistantIndex].text += token
+                        case .done:
+                            break
+                        }
                     }
                 }
             } catch {

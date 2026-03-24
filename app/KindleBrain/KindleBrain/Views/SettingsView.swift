@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("geminiAPIKey") private var geminiAPIKey = ""
+    @AppStorage("xaiAPIKey") private var xaiAPIKey = ""
     @AppStorage("dataDirectory") private var dataDirectory = ""
     @State private var showDirectoryPicker = false
     @State private var statusMessage = ""
@@ -37,11 +38,22 @@ struct SettingsView: View {
             Section("Gemini API Key") {
                 SecureField("API Key", text: $geminiAPIKey)
                     .textFieldStyle(.roundedBorder)
-                Text("Required for Chat and Explain Highlight features")
+                Text("Required for Gemini models and Explain Highlight")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Link("Get a free key at aistudio.google.com",
                      destination: URL(string: "https://aistudio.google.com/")!)
+                    .font(.caption)
+            }
+
+            Section("xAI API Key") {
+                SecureField("API Key", text: $xaiAPIKey)
+                    .textFieldStyle(.roundedBorder)
+                Text("Required for Grok models")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Link("Get a key at console.x.ai",
+                     destination: URL(string: "https://console.x.ai/")!)
                     .font(.caption)
             }
 
